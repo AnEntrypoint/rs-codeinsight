@@ -1,7 +1,9 @@
 mod analyzer;
+mod config;
 mod depgraph;
 mod formatter;
 mod git;
+mod json_output;
 mod lang;
 mod locations;
 mod models;
@@ -19,14 +21,23 @@ use rayon::prelude::*;
 use tree_sitter::Parser;
 
 use analyzer::{analyze_tree, FileAnalysis};
+use config::load_config;
 use depgraph::{build_dep_graph, detect_dead_code};
 use formatter::{format_compact, AggregatedStats, LangStats};
 use lang::get_language;
 
-const MAX_FILE_SIZE: u64 = 200 * 1024;
-
 fn main() {
-    let root = env::args().nth(1).unwrap_or_else(|| ".".into());
+    let args: Vec<String> = env::args().skip(1).collect();
+
+    let json_mode = args.iter().any(|a| a == "--json");
+    let cache_mode = args.iter().any(|a| a == "--cache");
+    let read_cache = args.iter().any(|a| a == "--read-cache");
+
+    let root = args.iter()
+        .find(|a| !a.starts_with("--"))
+        .cloned()
+        .unwrap_or_else(|| ".".into());
+
     let root_path = Path::new(&root);
 
     if !root_path.exists() {
@@ -34,7 +45,24 @@ fn main() {
         std::process::exit(1);
     }
 
-    let files = collect_files(root_path);
+    // --read-cache: just read and print the cached output
+    if read_cache {
+        let cache_path = root_path.join(".codeinsight");
+        match fs::read_to_string(&cache_path) {
+            Ok(content) => {
+                print!("{}", content);
+                return;
+            }
+            Err(_) => {
+                eprintln!("No cache file found at {}", cache_path.display());
+                std::process::exit(1);
+            }
+        }
+    }
+
+    // Load config
+    let config = load_config(root_path);
+    let files = collect_files(root_path, &config);
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
 
     let results: Vec<(String, String, FileAnalysis, scanner::ScanResults)> = files
@@ -115,39 +143,79 @@ fn main() {
     let data_layer = models::detect_data_layer(root_path);
     let key_locations = locations::detect_key_locations_from_paths(&all_rel_paths);
 
-    let output = format_compact(
-        &stats,
-        &file_metrics,
-        &dep_graph,
-        &dead_code,
-        &duplicates,
-        &project_ctx,
-        &git_ctx,
-        &tooling_ctx,
-        &all_scans,
-        &test_map,
-        &data_layer,
-        &key_locations,
-    );
+    let output = if json_mode {
+        json_output::format_json(
+            &stats,
+            &file_metrics,
+            &dep_graph,
+            &dead_code,
+            &duplicates,
+            &project_ctx,
+            &git_ctx,
+            &tooling_ctx,
+            &all_scans,
+            &test_map,
+            &data_layer,
+            &key_locations,
+        )
+    } else {
+        format_compact(
+            &stats,
+            &file_metrics,
+            &dep_graph,
+            &dead_code,
+            &duplicates,
+            &project_ctx,
+            &git_ctx,
+            &tooling_ctx,
+            &all_scans,
+            &test_map,
+            &data_layer,
+            &key_locations,
+        )
+    };
+
     println!("{}", output);
+
+    // --cache: write output to .codeinsight file
+    if cache_mode {
+        let cache_path = root_path.join(".codeinsight");
+        if let Err(e) = fs::write(&cache_path, &output) {
+            eprintln!("Failed to write cache: {}", e);
+        }
+    }
 }
 
-fn collect_files(root: &Path) -> Vec<(String, String, String)> {
+fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, String, String)> {
     let mut files = Vec::new();
+    let max_file_size = config.max_file_size;
+    let extra_ignore_dirs: Vec<String> = config.ignore_dirs.clone();
+    let ignore_files: Vec<String> = config.ignore_files.clone();
 
     let walker = WalkBuilder::new(root)
         .hidden(true)
         .git_ignore(true)
         .git_global(false)
         .git_exclude(false)
-        .filter_entry(|entry| {
+        .filter_entry(move |entry| {
             let name = entry.file_name().to_string_lossy();
-            !matches!(
+            if matches!(
                 name.as_ref(),
                 "node_modules" | ".git" | "dist" | "build" | "target"
                     | ".next" | ".nuxt" | "coverage" | "__pycache__"
                     | ".venv" | "vendor" | ".cache" | ".output"
-            )
+            ) {
+                return false;
+            }
+            // Check extra ignore dirs from config
+            if entry.path().is_dir() {
+                for dir in &extra_ignore_dirs {
+                    if name.as_ref() == dir.as_str() {
+                        return false;
+                    }
+                }
+            }
+            true
         })
         .build();
 
@@ -158,9 +226,18 @@ fn collect_files(root: &Path) -> Vec<(String, String, String)> {
         }
 
         if let Ok(meta) = path.metadata() {
-            if meta.len() > MAX_FILE_SIZE {
+            if meta.len() > max_file_size {
                 continue;
             }
+        }
+
+        // Check ignore_files patterns from config
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if matches_ignore_pattern(&file_name, &ignore_files) {
+            continue;
         }
 
         let ext = path
@@ -180,4 +257,19 @@ fn collect_files(root: &Path) -> Vec<(String, String, String)> {
     }
 
     files
+}
+
+fn matches_ignore_pattern(file_name: &str, patterns: &[String]) -> bool {
+    for pattern in patterns {
+        if pattern.starts_with("*.") {
+            // Wildcard suffix match: e.g. "*.generated.ts"
+            let suffix = &pattern[1..]; // ".generated.ts"
+            if file_name.ends_with(suffix) {
+                return true;
+            }
+        } else if pattern == file_name {
+            return true;
+        }
+    }
+    false
 }

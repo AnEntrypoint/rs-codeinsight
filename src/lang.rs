@@ -51,6 +51,14 @@ pub fn get_language(ext: &str) -> Option<LangDef> {
             name: "JSON",
             language: tree_sitter_json::LANGUAGE.into(),
         }),
+        ".php" => Some(LangDef {
+            name: "PHP",
+            language: tree_sitter_php::LANGUAGE_PHP.into(),
+        }),
+        ".cs" => Some(LangDef {
+            name: "C#",
+            language: tree_sitter_c_sharp::LANGUAGE.into(),
+        }),
         _ => None,
     }
 }
@@ -68,6 +76,8 @@ pub fn lang_abbrev(name: &str) -> &str {
         "Java" => "Java",
         "Ruby" => "Rb",
         "JSON" => "JSON",
+        "PHP" => "PHP",
+        "C#" => "C#",
         _ => &name[..4.min(name.len())],
     }
 }
