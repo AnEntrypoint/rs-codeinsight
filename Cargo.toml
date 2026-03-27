@@ -1,0 +1,38 @@
+[package]
+name = "codeinsight"
+version = "0.1.0"
+edition = "2021"
+description = "Fast codebase analyzer using tree-sitter. Instant project understanding for AI coding tools."
+repository = "https://github.com/faizelmahomed/codeinsight"
+homepage = "https://github.com/faizelmahomed/codeinsight"
+license = "MIT"
+readme = "README.md"
+keywords = ["tree-sitter", "code-analysis", "ast", "codebase", "ai-tools"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "codeinsight"
+path = "src/main.rs"
+
+[dependencies]
+tree-sitter = "0.24"
+tree-sitter-javascript = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-rust = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-c = "0.23"
+tree-sitter-cpp = "0.23"
+tree-sitter-java = "0.23"
+tree-sitter-json = "0.23"
+tree-sitter-ruby = "0.23"
+walkdir = "2"
+ignore = "0.4"
+rayon = "1.10"
+md-5 = "0.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
