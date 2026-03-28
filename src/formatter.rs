@@ -213,11 +213,16 @@ pub fn format_compact(
     }
 
     // ## 📊 Code Organization
-    let mut large_files: Vec<(&String, u32)> = file_metrics.iter()
-        .map(|(p, a)| (p, a.stats.lines))
-        .filter(|(p, l)| *l >= 200 && !p.ends_with(".json") && !p.ends_with(".lock") && !p.ends_with("-lock.json"))
-        .collect();
-    large_files.sort_by(|a, b| b.1.cmp(&a.1));
+    let mut large_files: Vec<(&String, u32)> = {
+        let mut seen: std::collections::HashSet<(String, u32)> = std::collections::HashSet::new();
+        let mut v: Vec<(&String, u32)> = file_metrics.iter()
+            .map(|(p, a)| (p, a.stats.lines))
+            .filter(|(p, l)| *l >= 200 && !p.ends_with(".json") && !p.ends_with(".lock") && !p.ends_with("-lock.json"))
+            .filter(|(p, l)| seen.insert((p.rsplit('/').next().unwrap_or(p).to_string(), *l)))
+            .collect();
+        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v
+    };
 
     let mut long_fns: Vec<(String, u32, String, u32)> = Vec::new();
     let mut many_param_fns: Vec<(String, u32, String, u32)> = Vec::new();
@@ -389,7 +394,13 @@ pub fn format_compact(
         let more = if complex_fns.len() > 4 { format!(" (+{})", complex_fns.len() - 4) } else { String::new() };
         issues.push(format!("🔥 Complex funcs: {}{more}", list.join(", ")));
     }
-    let lf: Vec<_> = file_metrics.iter().filter(|(p, a)| a.stats.lines > 500 && !p.ends_with(".json") && !p.ends_with(".lock")).collect();
+    let lf: Vec<_> = {
+        let mut seen: std::collections::HashSet<(String, u32)> = std::collections::HashSet::new();
+        file_metrics.iter()
+            .filter(|(p, a)| a.stats.lines > 500 && !p.ends_with(".json") && !p.ends_with(".lock"))
+            .filter(|(p, a)| seen.insert((p.rsplit('/').next().unwrap_or(p).to_string(), a.stats.lines)))
+            .collect()
+    };
     if !lf.is_empty() {
         let list: Vec<String> = lf.iter().take(3).map(|(p, a)| {
             let parts: Vec<&str> = p.split('/').collect();
@@ -406,14 +417,16 @@ pub fn format_compact(
         issues.push(format!("📋 {} duplicated groups", duplicates.len()));
     }
     if !scans.security.is_empty() {
-        let mut by_kind: HashMap<&str, Vec<String>> = HashMap::new();
+        let mut by_kind: HashMap<&str, std::collections::BTreeSet<String>> = HashMap::new();
         for issue in &scans.security {
             let f = issue.file.rsplit('/').next().unwrap_or(&issue.file);
-            by_kind.entry(&issue.kind).or_default().push(format!("{f}:{}", issue.line));
+            by_kind.entry(&issue.kind).or_default().insert(format!("{f}:{}", issue.line));
         }
         for (kind, locs) in &by_kind {
             let label = match *kind { "eval" => "eval()", "secret" => "hardcoded secrets", "sql_injection" => "SQL injection", _ => kind };
-            issues.push(format!("🔐 {label} in {}", locs.join(", ")));
+            let list: Vec<&String> = locs.iter().take(6).collect();
+            let more = if locs.len() > 6 { format!(" (+{})", locs.len() - 6) } else { String::new() };
+            issues.push(format!("🔐 {label} in {}{more}", list.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
         }
     }
     if !issues.is_empty() {
