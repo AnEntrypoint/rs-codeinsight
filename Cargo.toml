@@ -10,6 +10,10 @@ readme = "README.md"
 keywords = ["tree-sitter", "code-analysis", "ast", "codebase", "ai-tools"]
 categories = ["command-line-utilities", "development-tools"]
 
+[lib]
+name = "rs_codeinsight"
+path = "src/lib.rs"
+
 [[bin]]
 name = "codeinsight"
 path = "src/main.rs"
