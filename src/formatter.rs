@@ -241,7 +241,7 @@ pub fn format_compact(
             if f.params > 7 { many_param_fns.push((short.clone(), f.start_line, f.name.clone(), f.params)); }
         }
         for c in &a.class_names {
-            if seen_cls.insert(c.clone()) {
+            if c.len() >= 3 && seen_cls.insert(c.clone()) {
                 all_classes.push((short.clone(), 0, c.clone()));
             }
         }
@@ -446,12 +446,15 @@ pub fn format_compact(
             let _ = writeln!(out, "**Orphaned:** {}{more}", list.join(", "));
         }
         if !dead_code.unused_exports.is_empty() {
-            let list: Vec<String> = dead_code.unused_exports.iter().take(6)
-                .map(|(f, names)| {
-                    let fname = f.rsplit('/').next().unwrap_or(f);
-                    let ns = names.iter().take(2).cloned().collect::<Vec<_>>().join(", ");
-                    format!("{fname}: {ns}")
-                }).collect();
+            let mut seen_ue: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let deduped_ue: Vec<_> = dead_code.unused_exports.iter()
+                .filter(|(f, _)| seen_ue.insert(f.rsplit('/').next().unwrap_or(f).to_string()))
+                .take(6).collect();
+            let list: Vec<String> = deduped_ue.iter().map(|(f, names)| {
+                let fname = f.rsplit('/').next().unwrap_or(f);
+                let ns = names.iter().take(2).cloned().collect::<Vec<_>>().join(", ");
+                format!("{fname}: {ns}")
+            }).collect();
             let more = if dead_code.unused_exports.len() > 6 { format!(" (+{})", dead_code.unused_exports.len() - 6) } else { String::new() };
             let _ = writeln!(out, "**Unused exports:** {}{more}", list.join(" | "));
         }
