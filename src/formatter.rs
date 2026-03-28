@@ -114,7 +114,8 @@ pub fn format_compact(
         for (k, v) in &a.call_patterns { *all_patterns.entry(k.clone()).or_default() += v; }
         for (k, v) in &a.identifiers { *all_identifiers.entry(k.clone()).or_default() += v; }
     }
-    let mut sorted_patterns: Vec<_> = all_patterns.iter().collect();
+    let noise: &[&str] = &["console.log","console.error","console.warn","process.exit","JSON.stringify","JSON.parse","require","path.join","path.resolve","parseInt","parseFloat","Object.keys","Object.entries","Object.assign","Array.from","String","Number","Boolean"];
+    let mut sorted_patterns: Vec<_> = all_patterns.iter().filter(|(k, _)| !noise.contains(&k.as_str())).collect();
     sorted_patterns.sort_by(|a, b| b.1.cmp(a.1));
     let mut sorted_ids: Vec<_> = all_identifiers.iter()
         .filter(|(k, _)| k.len() >= 3 && k.len() <= 25)
@@ -149,7 +150,7 @@ pub fn format_compact(
     for a in file_metrics.values() {
         for (k, v) in &a.call_patterns { *all_calls.entry(k.clone()).or_default() += v; }
     }
-    let mut sorted_calls: Vec<_> = all_calls.iter().collect();
+    let mut sorted_calls: Vec<_> = all_calls.iter().filter(|(k, _)| !noise.contains(&k.as_str())).collect();
     sorted_calls.sort_by(|a, b| b.1.cmp(a.1));
 
     let has_code_patterns = total_async > 0 || total_try > 0 || !sorted_calls.is_empty();
@@ -214,7 +215,7 @@ pub fn format_compact(
     // ## 📊 Code Organization
     let mut large_files: Vec<(&String, u32)> = file_metrics.iter()
         .map(|(p, a)| (p, a.stats.lines))
-        .filter(|(_, l)| *l >= 200)
+        .filter(|(p, l)| *l >= 200 && !p.ends_with(".json") && !p.ends_with(".lock") && !p.ends_with("-lock.json"))
         .collect();
     large_files.sort_by(|a, b| b.1.cmp(&a.1));
 
@@ -376,7 +377,7 @@ pub fn format_compact(
         let more = if complex_fns.len() > 4 { format!(" (+{})", complex_fns.len() - 4) } else { String::new() };
         issues.push(format!("🔥 Complex funcs: {}{more}", list.join(", ")));
     }
-    let lf: Vec<_> = file_metrics.iter().filter(|(_, a)| a.stats.lines > 500).collect();
+    let lf: Vec<_> = file_metrics.iter().filter(|(p, a)| a.stats.lines > 500 && !p.ends_with(".json") && !p.ends_with(".lock")).collect();
     if !lf.is_empty() {
         let list: Vec<String> = lf.iter().take(3).map(|(p, a)| {
             let f = p.rsplit('/').next().unwrap_or(p);
@@ -469,7 +470,9 @@ pub fn format_compact(
     out.push_str("## 📄 File Index\n\n");
     let mut sorted_files: Vec<_> = file_metrics.iter().collect();
     sorted_files.sort_by_key(|(p, _)| p.as_str());
-    for (path, a) in &sorted_files {
+    let file_limit = if sorted_files.len() > 30 { 20 } else { sorted_files.len() };
+    let file_overflow = sorted_files.len().saturating_sub(file_limit);
+    for (path, a) in &sorted_files[..file_limit] {
         let mut parts = Vec::new();
         if !a.exported_names.is_empty() {
             let names: Vec<&str> = a.exported_names.iter().take(5).map(|s| s.as_str()).collect();
@@ -487,6 +490,9 @@ pub fn format_compact(
         };
         out.push_str(&line);
     }
+    if file_overflow > 0 {
+        let _ = writeln!(out, "*+{file_overflow} more files*");
+    }
 
     // Tooling + conventions + git — appended after file index as metadata
     let mut meta = Vec::new();
@@ -497,11 +503,15 @@ pub fn format_compact(
             meta.push(format!("Git: {}", gp.join(", ")));
         }
         if !git.hot_files.is_empty() {
-            let hot: Vec<String> = git.hot_files.iter().map(|(f, c)| {
-                let f = f.rsplit('/').next().unwrap_or(f);
-                format!("{f}({c})")
-            }).collect();
-            meta.push(format!("Hot: {}", hot.join(", ")));
+            let mut deduped: HashMap<&str, u32> = HashMap::new();
+            for (f, c) in &git.hot_files {
+                let base = f.rsplit('/').next().unwrap_or(f);
+                *deduped.entry(base).or_default() += c;
+            }
+            let mut hot: Vec<_> = deduped.iter().collect();
+            hot.sort_by(|a, b| b.1.cmp(a.1));
+            let hot_str: Vec<String> = hot.iter().take(6).map(|(f, c)| format!("{f}({c})")).collect();
+            meta.push(format!("Hot: {}", hot_str.join(", ")));
         }
     }
     let mut tool_parts = Vec::new();
