@@ -222,14 +222,23 @@ pub fn format_compact(
     let mut long_fns: Vec<(String, u32, String, u32)> = Vec::new();
     let mut many_param_fns: Vec<(String, u32, String, u32)> = Vec::new();
     let mut all_classes: Vec<(String, u32, String)> = Vec::new();
+    let mut seen_fns: std::collections::HashSet<(String, u32, String)> = std::collections::HashSet::new();
+    let mut seen_cls: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (path, a) in file_metrics {
-        let fname = path.rsplit('/').next().unwrap_or(path);
+        let parts: Vec<&str> = path.split('/').collect();
+        let short = if parts.len() >= 2 { format!("{}/{}", parts[parts.len()-2], parts[parts.len()-1]) } else { path.clone() };
+        let base = parts[parts.len()-1].to_string();
         for f in &a.func_names {
-            if f.lines > 50 { long_fns.push((fname.to_string(), f.start_line, f.name.clone(), f.lines)); }
-            if f.params > 5 { many_param_fns.push((fname.to_string(), f.start_line, f.name.clone(), f.params)); }
+            let key = (base.clone(), f.start_line, f.name.clone());
+            if seen_fns.contains(&key) { continue; }
+            seen_fns.insert(key);
+            if f.lines > 50 { long_fns.push((short.clone(), f.start_line, f.name.clone(), f.lines)); }
+            if f.params > 7 { many_param_fns.push((short.clone(), f.start_line, f.name.clone(), f.params)); }
         }
         for c in &a.class_names {
-            all_classes.push((fname.to_string(), 0, c.clone()));
+            if seen_cls.insert(c.clone()) {
+                all_classes.push((short.clone(), 0, c.clone()));
+            }
         }
     }
     long_fns.sort_by(|a, b| b.3.cmp(&a.3));
@@ -240,7 +249,8 @@ pub fn format_compact(
         out.push_str("## 📊 Code Organization\n\n");
         if !large_files.is_empty() {
             let list: Vec<String> = large_files.iter().take(6).map(|(p, l)| {
-                let f = p.rsplit('/').next().unwrap_or(p);
+                let parts: Vec<&str> = p.split('/').collect();
+                let f = if parts.len() >= 2 { format!("{}/{}", parts[parts.len()-2], parts[parts.len()-1]) } else { p.to_string() };
                 format!("{f}:{l}L")
             }).collect();
             let more = if large_files.len() > 6 { format!(" (+{})", large_files.len() - 6) } else { String::new() };
@@ -363,10 +373,12 @@ pub fn format_compact(
     let mut issues = Vec::new();
     let complex_fns: Vec<_> = {
         let mut v: Vec<(String, u32, String, u32)> = Vec::new();
+        let mut seen: std::collections::HashSet<(String, u32, String)> = std::collections::HashSet::new();
         for (path, a) in file_metrics {
-            let fname = path.rsplit('/').next().unwrap_or(path);
+            let fname = path.rsplit('/').next().unwrap_or(path).to_string();
             for f in &a.func_names {
-                if f.lines > 100 { v.push((fname.to_string(), f.start_line, f.name.clone(), f.lines)); }
+                let key = (fname.clone(), f.start_line, f.name.clone());
+                if f.lines > 100 && seen.insert(key) { v.push((fname.clone(), f.start_line, f.name.clone(), f.lines)); }
             }
         }
         v.sort_by(|a, b| b.3.cmp(&a.3));
@@ -380,7 +392,8 @@ pub fn format_compact(
     let lf: Vec<_> = file_metrics.iter().filter(|(p, a)| a.stats.lines > 500 && !p.ends_with(".json") && !p.ends_with(".lock")).collect();
     if !lf.is_empty() {
         let list: Vec<String> = lf.iter().take(3).map(|(p, a)| {
-            let f = p.rsplit('/').next().unwrap_or(p);
+            let parts: Vec<&str> = p.split('/').collect();
+            let f = if parts.len() >= 2 { format!("{}/{}", parts[parts.len()-2], parts[parts.len()-1]) } else { p.to_string() };
             format!("{f}:{}L", a.stats.lines)
         }).collect();
         let more = if lf.len() > 3 { format!(" (+{})", lf.len() - 3) } else { String::new() };
