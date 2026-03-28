@@ -271,7 +271,7 @@ pub fn format_compact(
             .collect();
         connections.sort_by(|a, b| (b.1 + b.2).cmp(&(a.1 + a.2)));
 
-        let fname = |p: &str| p.rsplit('/').next().unwrap_or(p).split('.').next().unwrap_or(p);
+        fn fname(p: &str) -> &str { p.rsplit('/').next().unwrap_or(p).split('.').next().unwrap_or(p) }
 
         let l0: Vec<_> = connections.iter().filter(|(_, o, i)| *o == 0 && *i > 0).collect();
         if !l0.is_empty() {
