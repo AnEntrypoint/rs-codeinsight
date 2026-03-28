@@ -5,4 +5,4 @@
 Thumbs.db
 .gm-stop-verified
 
-.code-search/
+.code-search/*.stackdump
