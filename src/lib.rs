@@ -10,7 +10,6 @@ pub mod locations;
 pub mod models;
 pub mod project;
 pub mod scanner;
-pub mod search;
 pub mod tooling;
 
 use std::collections::{HashMap, HashSet};
@@ -25,15 +24,12 @@ use analyzer::{analyze_tree, FileAnalysis};
 use formatter::{AggregatedStats, LangStats};
 use lang::get_language;
 
-pub use search::{build_bm25_index, bm25_search, Bm25Index, SearchResult};
-
 pub struct AnalyzeOptions {
     pub json_mode: bool,
 }
 
 pub struct AnalysisOutput {
     pub text: String,
-    pub bm25_index: Bm25Index,
 }
 
 pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
@@ -41,7 +37,7 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let files = collect_files(root, &cfg);
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
 
-    let results: Vec<(String, String, FileAnalysis, scanner::ScanResults, Vec<(String, String)>)> = files
+    let results: Vec<(String, String, FileAnalysis, scanner::ScanResults)> = files
         .into_par_iter()
         .filter_map(|(rel_path, abs_path, lang_name)| {
             let source = fs::read_to_string(&abs_path).ok()?;
@@ -55,12 +51,7 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
             let tree = parser.parse(&source, None)?;
             let analysis = analyze_tree(&tree, &source);
             let scan = scanner::scan_source(&rel_path, &source);
-            let lines: Vec<(String, String)> = source
-                .lines()
-                .enumerate()
-                .map(|(i, l)| (format!("{}:{}", rel_path, i + 1), l.to_string()))
-                .collect();
-            Some((rel_path, lang_name, analysis, scan, lines))
+            Some((rel_path, lang_name, analysis, scan))
         })
         .collect();
 
@@ -70,9 +61,8 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let mut all_func_hashes: HashMap<String, Vec<(String, String)>> = HashMap::new();
     let mut all_scans = scanner::ScanResults::default();
     let mut file_languages: HashMap<String, String> = HashMap::new();
-    let mut all_lines: Vec<(String, String)> = Vec::new();
 
-    for (rel_path, lang_name, analysis, scan, lines) in results {
+    for (rel_path, lang_name, analysis, scan) in results {
         stats.files += 1;
         stats.total_lines += analysis.stats.lines;
         let ls = stats.by_language.entry(lang_name.clone()).or_insert_with(LangStats::default);
@@ -90,7 +80,6 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
         all_scans.hacks.extend(scan.hacks);
         all_scans.security.extend(scan.security);
         file_languages.insert(rel_path.clone(), lang_name);
-        all_lines.extend(lines);
         file_metrics.insert(rel_path, analysis);
     }
 
@@ -115,9 +104,7 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
         formatter::format_compact(&stats, &file_metrics, &dep_graph, &dead_code, &duplicates, &project_ctx, &git_ctx, &tooling_ctx, &all_scans, &test_map, &data_layer, &key_locations, &conv)
     };
 
-    let bm25_index = build_bm25_index(all_lines);
-
-    AnalysisOutput { text, bm25_index }
+    AnalysisOutput { text }
 }
 
 pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, String, String)> {

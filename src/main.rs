@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
-use rs_codeinsight::{analyze, bm25_search, AnalyzeOptions};
+use rs_codeinsight::{analyze, AnalyzeOptions};
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -11,12 +11,8 @@ fn main() {
     let cache_mode = args.iter().any(|a| a == "--cache");
     let read_cache = args.iter().any(|a| a == "--read-cache");
 
-    let search_query: Option<String> = args.windows(2)
-        .find(|w| w[0] == "--search")
-        .map(|w| w[1].clone());
-
     let root = args.iter()
-        .find(|a| !a.starts_with("--") && !search_query.as_deref().map_or(false, |q| *a == q))
+        .find(|a| !a.starts_with("--"))
         .cloned()
         .unwrap_or_else(|| ".".into());
 
@@ -36,15 +32,6 @@ fn main() {
     }
 
     let output = analyze(root_path, AnalyzeOptions { json_mode });
-
-    if let Some(query) = search_query {
-        let results = bm25_search(&output.bm25_index, &query, 10);
-        println!("## Search: {}", query);
-        for r in &results {
-            println!("  {} (score {:.2})", r.location, r.score);
-        }
-        return;
-    }
 
     println!("{}", output.text);
 
