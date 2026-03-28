@@ -142,7 +142,7 @@ jobs:
             "license": "MIT",
             "repository": {
               "type": "git",
-              "url": "https://github.com/faizelmahomed/rs-codeinsight"
+              "url": "https://github.com/AnEntrypoint/rs-codeinsight"
             }
           }
           PKGJSON
@@ -212,9 +212,9 @@ jobs:
             "license": "MIT",
             "repository": {
               "type": "git",
-              "url": "https://github.com/faizelmahomed/rs-codeinsight"
+              "url": "https://github.com/AnEntrypoint/rs-codeinsight"
             },
-            "homepage": "https://github.com/faizelmahomed/rs-codeinsight",
+            "homepage": "https://github.com/AnEntrypoint/rs-codeinsight",
             "keywords": ["tree-sitter", "code-analysis", "ast", "codebase", "ai-tools", "claude-code"]
           }
           PKGJSON
