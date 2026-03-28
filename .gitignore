@@ -3,3 +3,6 @@
 *.swo
 .DS_Store
 Thumbs.db
+.gm-stop-verified
+
+.code-search/

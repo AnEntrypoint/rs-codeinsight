@@ -1,10 +1,10 @@
 [package]
-name = "codeinsight"
-version = "0.2.0"
+name = "rs-codeinsight"
+version = "0.3.0"
 edition = "2021"
 description = "Fast codebase analyzer using tree-sitter. Instant project understanding for AI coding tools."
-repository = "https://github.com/faizelmahomed/codeinsight"
-homepage = "https://github.com/faizelmahomed/codeinsight"
+repository = "https://github.com/faizelmahomed/rs-codeinsight"
+homepage = "https://github.com/faizelmahomed/rs-codeinsight"
 license = "MIT"
 readme = "README.md"
 keywords = ["tree-sitter", "code-analysis", "ast", "codebase", "ai-tools"]

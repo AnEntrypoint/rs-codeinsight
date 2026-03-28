@@ -1,5 +1,27 @@
 use tree_sitter::Language;
 
+pub static NODE_BUILTINS: &[&str] = &[
+    "fs", "path", "os", "util", "crypto", "http", "https", "url", "stream",
+    "events", "child_process", "assert", "buffer", "querystring", "zlib",
+    "net", "tls", "dns", "cluster", "readline", "worker_threads",
+    "node:fs", "node:path", "node:os", "node:util", "node:crypto",
+    "node:http", "node:https", "node:url", "node:stream", "node:events",
+    "node:child_process", "node:assert", "node:buffer", "node:test",
+];
+
+pub static KNOWN_SERVICES: &[(&str, &str)] = &[
+    ("stripe", "Stripe"), ("@stripe", "Stripe"),
+    ("redis", "Redis"), ("ioredis", "Redis"),
+    ("prisma", "Prisma"), ("@prisma", "Prisma"),
+    ("drizzle-orm", "Drizzle"), ("mongoose", "MongoDB"), ("mongodb", "MongoDB"),
+    ("pg", "PostgreSQL"), ("mysql2", "MySQL"),
+    ("@aws-sdk", "AWS"), ("aws-sdk", "AWS"),
+    ("firebase", "Firebase"), ("@supabase", "Supabase"),
+    ("socket.io", "Socket.IO"), ("graphql", "GraphQL"), ("@apollo", "Apollo"),
+    ("tailwindcss", "Tailwind"), ("@sentry", "Sentry"), ("sentry", "Sentry"),
+    ("zod", "Zod"), ("trpc", "tRPC"), ("@trpc", "tRPC"),
+];
+
 pub struct LangDef {
     pub name: &'static str,
     pub language: Language,

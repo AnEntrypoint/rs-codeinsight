@@ -3,7 +3,7 @@ use crate::analyzer::FileAnalysis;
 use crate::conventions::LanguageConventions;
 use crate::depgraph::{DeadCode, DepGraph};
 use crate::git::GitContext;
-use crate::lang::lang_abbrev;
+use crate::lang::{lang_abbrev, KNOWN_SERVICES, NODE_BUILTINS};
 use crate::locations::KeyLocations;
 use crate::models::DataLayer;
 use crate::project::ProjectContext;
@@ -70,27 +70,7 @@ pub fn format_json(
     out.push_str("  },\n");
 
     // stack
-    let node_builtins: std::collections::HashSet<&str> = [
-        "fs", "path", "os", "util", "crypto", "http", "https", "url", "stream",
-        "events", "child_process", "assert", "buffer", "querystring", "zlib",
-        "net", "tls", "dns", "cluster", "readline", "worker_threads",
-        "node:fs", "node:path", "node:os", "node:util", "node:crypto",
-        "node:http", "node:https", "node:url", "node:stream", "node:events",
-        "node:child_process", "node:assert", "node:buffer", "node:test",
-    ].iter().copied().collect();
-
-    let known_services: &[(&str, &str)] = &[
-        ("stripe", "Stripe"), ("@stripe", "Stripe"),
-        ("redis", "Redis"), ("ioredis", "Redis"),
-        ("prisma", "Prisma"), ("@prisma", "Prisma"),
-        ("drizzle-orm", "Drizzle"), ("mongoose", "MongoDB"), ("mongodb", "MongoDB"),
-        ("pg", "PostgreSQL"), ("mysql2", "MySQL"),
-        ("@aws-sdk", "AWS"), ("aws-sdk", "AWS"),
-        ("firebase", "Firebase"), ("@supabase", "Supabase"),
-        ("socket.io", "Socket.IO"), ("graphql", "GraphQL"), ("@apollo", "Apollo"),
-        ("tailwindcss", "Tailwind"), ("@sentry", "Sentry"), ("sentry", "Sentry"),
-        ("zod", "Zod"), ("trpc", "tRPC"), ("@trpc", "tRPC"),
-    ];
+    let known_services = KNOWN_SERVICES;
 
     let mut stack_parts: Vec<String> = project.frameworks.iter().cloned().collect();
     for (prefix, label) in known_services {
@@ -237,7 +217,7 @@ pub fn format_json(
 
     // deps
     let mut ext_deps: Vec<_> = dep_graph.external_imports.iter()
-        .filter(|(k, _)| !node_builtins.contains(k.as_str()))
+        .filter(|(k, _)| !NODE_BUILTINS.contains(&k.as_str()))
         .filter(|(k, _)| !k.starts_with("@/") && !k.starts_with("./") && !k.starts_with("../"))
         .collect();
     ext_deps.sort_by(|a, b| b.1.cmp(a.1));

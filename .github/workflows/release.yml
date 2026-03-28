@@ -44,6 +44,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - name: Install cross-compilation tools
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
@@ -109,7 +113,6 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
 
-          # Platform packages
           declare -A PLATFORMS=(
             ["codeinsight-win32-x64"]="win32 x64 codeinsight.exe"
             ["codeinsight-linux-x64"]="linux x64 codeinsight"
@@ -128,7 +131,7 @@ jobs:
 
             cat > "${dir}/package.json" << PKGJSON
           {
-            "name": "@codeinsight/${pkg#codeinsight-}",
+            "name": "@rs-codeinsight/${pkg#codeinsight-}",
             "version": "${VERSION}",
             "description": "codeinsight binary for ${os}-${cpu}",
             "os": ["${os}"],
@@ -139,13 +142,12 @@ jobs:
             "license": "MIT",
             "repository": {
               "type": "git",
-              "url": "https://github.com/faizelmahomed/codeinsight"
+              "url": "https://github.com/faizelmahomed/rs-codeinsight"
             }
           }
           PKGJSON
           done
 
-          # Main package
           mkdir -p npm/codeinsight/bin
 
           cat > npm/codeinsight/bin/codeinsight.js << 'WRAPPER'
@@ -155,11 +157,11 @@ jobs:
           const fs = require('fs');
 
           const PLATFORMS = {
-            'win32-x64': '@codeinsight/win32-x64',
-            'linux-x64': '@codeinsight/linux-x64',
-            'linux-arm64': '@codeinsight/linux-arm64',
-            'darwin-x64': '@codeinsight/darwin-x64',
-            'darwin-arm64': '@codeinsight/darwin-arm64',
+            'win32-x64': '@rs-codeinsight/win32-x64',
+            'linux-x64': '@rs-codeinsight/linux-x64',
+            'linux-arm64': '@rs-codeinsight/linux-arm64',
+            'darwin-x64': '@rs-codeinsight/darwin-x64',
+            'darwin-arm64': '@rs-codeinsight/darwin-arm64',
           };
 
           const key = `${process.platform}-${process.arch}`;
@@ -183,7 +185,7 @@ jobs:
           }
 
           try {
-            const result = execFileSync(binPath, process.argv.slice(2), {
+            execFileSync(binPath, process.argv.slice(2), {
               stdio: 'inherit',
               maxBuffer: 50 * 1024 * 1024,
             });
@@ -201,18 +203,18 @@ jobs:
               "codeinsight": "bin/codeinsight.js"
             },
             "optionalDependencies": {
-              "@codeinsight/win32-x64": "${VERSION}",
-              "@codeinsight/linux-x64": "${VERSION}",
-              "@codeinsight/linux-arm64": "${VERSION}",
-              "@codeinsight/darwin-x64": "${VERSION}",
-              "@codeinsight/darwin-arm64": "${VERSION}"
+              "@rs-codeinsight/win32-x64": "${VERSION}",
+              "@rs-codeinsight/linux-x64": "${VERSION}",
+              "@rs-codeinsight/linux-arm64": "${VERSION}",
+              "@rs-codeinsight/darwin-x64": "${VERSION}",
+              "@rs-codeinsight/darwin-arm64": "${VERSION}"
             },
             "license": "MIT",
             "repository": {
               "type": "git",
-              "url": "https://github.com/faizelmahomed/codeinsight"
+              "url": "https://github.com/faizelmahomed/rs-codeinsight"
             },
-            "homepage": "https://github.com/faizelmahomed/codeinsight",
+            "homepage": "https://github.com/faizelmahomed/rs-codeinsight",
             "keywords": ["tree-sitter", "code-analysis", "ast", "codebase", "ai-tools", "claude-code"]
           }
           PKGJSON
