@@ -207,7 +207,7 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
         ctx.package_manager = Some("yarn".into());
     } else if root.join("pnpm-lock.yaml").exists() {
         ctx.package_manager = Some("pnpm".into());
-    } else if root.join("bun.lockb").exists() || root.join("bun.lock").exists() {
+    } else if root.join("bun.lockb").exists() || root.join("bun.lock").exists() || root.join("bunfig.toml").exists() {
         ctx.package_manager = Some("bun".into());
     } else if root.join("package-lock.json").exists() {
         ctx.package_manager = Some("npm".into());

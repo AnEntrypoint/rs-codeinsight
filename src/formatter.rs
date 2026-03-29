@@ -64,6 +64,10 @@ pub fn format_compact(
         let desc_str = if !desc.is_empty() { format!(" — {desc}") } else { String::new() };
         let _ = writeln!(out, "## 🎯 {name}{ver_str}{badges}{desc_str}");
         out.push('\n');
+        if let Some(ref pm) = project.package_manager {
+            let runtime = if pm == "bun" { "bun" } else { "node" };
+            let _ = writeln!(out, "**Runtime:** {} ({})\n", runtime, pm);
+        }
     } else if let Some(ref excerpt) = project.readme_excerpt {
         if !excerpt.is_empty() {
             let _ = writeln!(out, "## 🎯 {excerpt}");
