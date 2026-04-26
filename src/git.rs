@@ -63,11 +63,14 @@ pub fn analyze_git(root: &Path) -> GitContext {
 }
 
 fn run_git(root: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(root);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+    let output = cmd.output().ok()?;
 
     if output.status.success() {
         Some(String::from_utf8_lossy(&output.stdout).to_string())
