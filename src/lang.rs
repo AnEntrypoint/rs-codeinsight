@@ -29,54 +29,67 @@ pub struct LangDef {
 
 pub fn get_language(ext: &str) -> Option<LangDef> {
     match ext {
+        #[cfg(feature = "javascript")]
         ".js" | ".mjs" | ".cjs" | ".jsx" => Some(LangDef {
             name: "JavaScript",
             language: tree_sitter_javascript::LANGUAGE.into(),
         }),
+        #[cfg(feature = "typescript")]
         ".ts" => Some(LangDef {
             name: "TypeScript",
             language: tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         }),
+        #[cfg(feature = "typescript")]
         ".tsx" => Some(LangDef {
             name: "TSX",
             language: tree_sitter_typescript::LANGUAGE_TSX.into(),
         }),
+        #[cfg(feature = "python")]
         ".py" => Some(LangDef {
             name: "Python",
             language: tree_sitter_python::LANGUAGE.into(),
         }),
+        #[cfg(feature = "rust")]
         ".rs" => Some(LangDef {
             name: "Rust",
             language: tree_sitter_rust::LANGUAGE.into(),
         }),
+        #[cfg(feature = "go")]
         ".go" => Some(LangDef {
             name: "Go",
             language: tree_sitter_go::LANGUAGE.into(),
         }),
+        #[cfg(feature = "c")]
         ".c" | ".h" => Some(LangDef {
             name: "C",
             language: tree_sitter_c::LANGUAGE.into(),
         }),
+        #[cfg(feature = "cpp")]
         ".cpp" | ".cc" | ".cxx" | ".hpp" => Some(LangDef {
             name: "C++",
             language: tree_sitter_cpp::LANGUAGE.into(),
         }),
+        #[cfg(feature = "java")]
         ".java" => Some(LangDef {
             name: "Java",
             language: tree_sitter_java::LANGUAGE.into(),
         }),
+        #[cfg(feature = "ruby")]
         ".rb" => Some(LangDef {
             name: "Ruby",
             language: tree_sitter_ruby::LANGUAGE.into(),
         }),
+        #[cfg(feature = "json")]
         ".json" => Some(LangDef {
             name: "JSON",
             language: tree_sitter_json::LANGUAGE.into(),
         }),
+        #[cfg(feature = "php")]
         ".php" => Some(LangDef {
             name: "PHP",
             language: tree_sitter_php::LANGUAGE_PHP.into(),
         }),
+        #[cfg(feature = "csharp")]
         ".cs" => Some(LangDef {
             name: "C#",
             language: tree_sitter_c_sharp::LANGUAGE.into(),

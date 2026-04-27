@@ -18,20 +18,36 @@ path = "src/lib.rs"
 name = "codeinsight"
 path = "src/main.rs"
 
+[features]
+default = ["all-languages"]
+all-languages = ["javascript","typescript","python","rust","go","c","cpp","java","json","ruby","csharp","php"]
+javascript = ["dep:tree-sitter-javascript"]
+typescript = ["dep:tree-sitter-typescript"]
+python = ["dep:tree-sitter-python"]
+rust = ["dep:tree-sitter-rust"]
+go = ["dep:tree-sitter-go"]
+c = ["dep:tree-sitter-c"]
+cpp = ["dep:tree-sitter-cpp"]
+java = ["dep:tree-sitter-java"]
+json = ["dep:tree-sitter-json"]
+ruby = ["dep:tree-sitter-ruby"]
+csharp = ["dep:tree-sitter-c-sharp"]
+php = ["dep:tree-sitter-php"]
+
 [dependencies]
 tree-sitter = "0.24"
-tree-sitter-javascript = "0.23"
-tree-sitter-typescript = "0.23"
-tree-sitter-python = "0.23"
-tree-sitter-rust = "0.23"
-tree-sitter-go = "0.23"
-tree-sitter-c = "0.23"
-tree-sitter-cpp = "0.23"
-tree-sitter-java = "0.23"
-tree-sitter-json = "0.23"
-tree-sitter-ruby = "0.23"
-tree-sitter-c-sharp = "0.23"
-tree-sitter-php = "0.23"
+tree-sitter-javascript = { version = "0.23", optional = true }
+tree-sitter-typescript = { version = "0.23", optional = true }
+tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter-rust = { version = "0.23", optional = true }
+tree-sitter-go = { version = "0.23", optional = true }
+tree-sitter-c = { version = "0.23", optional = true }
+tree-sitter-cpp = { version = "0.23", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
+tree-sitter-json = { version = "0.23", optional = true }
+tree-sitter-ruby = { version = "0.23", optional = true }
+tree-sitter-c-sharp = { version = "0.23", optional = true }
+tree-sitter-php = { version = "0.23", optional = true }
 walkdir = "2"
 ignore = "0.4"
 rayon = "1.10"
