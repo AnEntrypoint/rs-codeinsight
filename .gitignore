@@ -6,3 +6,8 @@ Thumbs.db
 .gm-stop-verified
 
 .code-search/*.stackdump
+dist/
+.gm/
+.codeinsight/
+rs-learn.db
+.plugkit-browser-profile/

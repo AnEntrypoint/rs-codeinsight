@@ -1,0 +1,29 @@
+id: home
+title: Home
+hero:
+  heading: "rs-codeinsight"
+  subheading: "tree-sitter codebase analyzer"
+  body: "instant project understanding for AI coding tools. one binary, every language tree-sitter speaks. gm's situational-awareness layer."
+  badges:
+    - { label: "rust" }
+    - { label: "tree-sitter" }
+    - { label: "analysis" }
+    - { label: "gm" }
+  ctas:
+    - { label: "GitHub", href: "https://github.com/AnEntrypoint/rs-codeinsight", primary: true }
+    - { label: "Install", href: "https://github.com/AnEntrypoint/rs-codeinsight#installation" }
+    - { label: "247420", href: "https://247420.xyz" }
+features:
+  heading: "Why rs-codeinsight"
+  items:
+    - { name: "rust", desc: "flagship trait of rs-codeinsight." }
+    - { name: "tree-sitter", desc: "core capability of rs-codeinsight." }
+    - { name: "analysis", desc: "core capability of rs-codeinsight." }
+quickstart:
+  heading: Quick start
+  lines:
+    - { kind: "cmt", text: "# install" }
+    - { kind: "cmd", text: "cargo install rs-codeinsight" }
+    - { kind: "cmt", text: "" }
+    - { kind: "cmt", text: "# source" }
+    - { kind: "cmd", text: "git clone https://github.com/AnEntrypoint/rs-codeinsight.git" }
