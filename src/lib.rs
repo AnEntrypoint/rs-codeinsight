@@ -35,6 +35,11 @@ pub struct AnalysisOutput {
 pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let cfg = config::load_config(root);
     let files = collect_files(root, &cfg);
+    analyze_with_files(root, options, files)
+}
+
+pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
+    let _cfg = config::load_config(root);
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
 
     let results: Vec<(String, String, FileAnalysis, scanner::ScanResults)> = files
@@ -159,4 +164,61 @@ pub fn matches_ignore_pattern(file_name: &str, patterns: &[String]) -> bool {
         }
     }
     false
+}
+
+pub fn compute_freshness_digest(root: &Path) -> String {
+    let cfg = config::load_config(root);
+    let files = collect_files(root, &cfg);
+    compute_freshness_digest_from_files(root, &files)
+}
+
+pub fn compute_freshness_digest_from_files(root: &Path, files: &[(String, String, String)]) -> String {
+    use md5::{Digest, Md5};
+    use std::process::Command;
+    let mut sorted: Vec<(String, u64)> = files.par_iter().map(|(rel, abs, _)| {
+        let mtime_secs = fs::metadata(abs)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        (rel.clone(), mtime_secs)
+    }).collect();
+    sorted.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut hasher = Md5::new();
+    for (rel, mt) in &sorted {
+        hasher.update(rel.as_bytes());
+        hasher.update(b"|");
+        hasher.update(mt.to_le_bytes());
+        hasher.update(b"\n");
+    }
+    let mut git_cmd = Command::new("git");
+    #[cfg(windows)]
+    { use std::os::windows::process::CommandExt; git_cmd.creation_flags(0x08000000); }
+    let combined = git_cmd
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(root)
+        .output()
+        .ok()
+        .and_then(|o| if o.status.success() { Some(String::from_utf8_lossy(&o.stdout).trim().to_string()) } else { None })
+        .unwrap_or_default();
+    hasher.update(b"GIT_HEAD=");
+    hasher.update(combined.as_bytes());
+    hasher.update(b"\n");
+    let mut dirty_cmd = Command::new("git");
+    #[cfg(windows)]
+    { use std::os::windows::process::CommandExt; dirty_cmd.creation_flags(0x08000000); }
+    let dirty_count = dirty_cmd
+        .args(["status", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).lines().count())
+        .unwrap_or(0);
+    hasher.update(b"DIRTY=");
+    hasher.update(dirty_count.to_le_bytes());
+    let result = hasher.finalize();
+    let mut hex = String::with_capacity(32);
+    for b in result.iter() { hex.push_str(&format!("{:02x}", b)); }
+    format!("v1:{}:files={}", hex, sorted.len())
 }
