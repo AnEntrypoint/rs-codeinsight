@@ -4,20 +4,28 @@
 
 ### Languages
 
-Expanded `all-languages` from 12 to **38** by adding 26 tree-sitter grammars:
+Expanded `all-languages` from 12 to **28** by adding 16 tree-sitter grammars verified compatible with `tree-sitter@0.24`:
 
-- **Web**: html, css, vue, svelte
-- **Shell + config**: bash, yaml, toml, dockerfile, make, nix
+- **Web**: html, css
+- **Shell + config**: bash, yaml
 - **Functional**: haskell, ocaml, elixir, erlang
-- **JVM-adjacent**: kotlin, scala
-- **Modern systems**: zig, swift, dart
+- **JVM-adjacent**: scala
+- **Modern systems**: zig, swift
 - **Scripting**: lua, r, julia
-- **Query / data**: sql, graphql
 - **Markup + meta**: markdown, regex
 
 Each language is a separate Cargo feature; `default = ["all-languages"]` enables every grammar. Per-language opt-out works via `default-features = false, features = ["javascript","typescript","python"]` etc.
 
-Crate API note: tree-sitter crates split between two patterns at the time of writing — the modern `tree_sitter_<lang>::LANGUAGE` constant (used by tree-sitter-rust 0.23+, tree-sitter-html 0.23+, etc.) and the older `tree_sitter_<lang>::language()` function (still used by tree-sitter-toml 0.20, tree-sitter-kotlin 0.3, tree-sitter-make 1, tree-sitter-sql 0.0.2, tree-sitter-graphql 0.1, tree-sitter-dockerfile 0.2, tree-sitter-nix 0.3, tree-sitter-vue 0.0.3, tree-sitter-dart 0.2). `lang.rs` calls each accordingly.
+#### Excluded — incompatible with `tree-sitter@0.24` core
+
+The following crates were attempted but rejected after CI surfaced incompatibilities. Re-include when upstream publishes a 0.24-compatible release:
+
+- **Old API (no `LANGUAGE` constant, no `language()` fn matching the expected signature)**: `tree-sitter-make`, `tree-sitter-graphql`, `tree-sitter-nix`, `tree-sitter-svelte`, `tree-sitter-dart`.
+- **Pinned to old `tree-sitter` 0.19 / 0.20 transitively (multiple-version conflict)**: `tree-sitter-sql`, `tree-sitter-dockerfile`, `tree-sitter-vue`, `tree-sitter-kotlin`, `tree-sitter-toml`.
+
+When a downstream cargo build sees two different `tree_sitter::Language` types from two different `tree-sitter` crate versions in the dep graph, it fails E0308 even when the rust source looks correct. The fix has to come from the grammar crate's maintainer republishing against a current `tree-sitter`.
+
+Crate API note: modern crates export `tree_sitter_<lang>::LANGUAGE` (a `LanguageFn` that converts to `Language` via `.into()`). `lang.rs` uses this consistently for every supported grammar.
 
 ## 0.2.0 (2026-03-27)
 
