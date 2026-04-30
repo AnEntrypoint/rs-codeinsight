@@ -20,7 +20,12 @@ path = "src/main.rs"
 
 [features]
 default = ["all-languages"]
-all-languages = ["javascript","typescript","python","rust","go","c","cpp","java","json","ruby","csharp","php"]
+all-languages = [
+    "javascript","typescript","python","rust","go","c","cpp","java","json","ruby","csharp","php",
+    "html","css","bash","yaml","toml","markdown","kotlin","scala","haskell","ocaml",
+    "elixir","erlang","zig","lua","regex","make","sql","graphql","dockerfile","nix",
+    "vue","svelte","r","julia","dart","swift",
+]
 javascript = ["dep:tree-sitter-javascript"]
 typescript = ["dep:tree-sitter-typescript"]
 python = ["dep:tree-sitter-python"]
@@ -33,6 +38,32 @@ json = ["dep:tree-sitter-json"]
 ruby = ["dep:tree-sitter-ruby"]
 csharp = ["dep:tree-sitter-c-sharp"]
 php = ["dep:tree-sitter-php"]
+html = ["dep:tree-sitter-html"]
+css = ["dep:tree-sitter-css"]
+bash = ["dep:tree-sitter-bash"]
+yaml = ["dep:tree-sitter-yaml"]
+toml = ["dep:tree-sitter-toml"]
+markdown = ["dep:tree-sitter-md"]
+kotlin = ["dep:tree-sitter-kotlin"]
+scala = ["dep:tree-sitter-scala"]
+haskell = ["dep:tree-sitter-haskell"]
+ocaml = ["dep:tree-sitter-ocaml"]
+elixir = ["dep:tree-sitter-elixir"]
+erlang = ["dep:tree-sitter-erlang"]
+zig = ["dep:tree-sitter-zig"]
+lua = ["dep:tree-sitter-lua"]
+regex = ["dep:tree-sitter-regex"]
+make = ["dep:tree-sitter-make"]
+sql = ["dep:tree-sitter-sql"]
+graphql = ["dep:tree-sitter-graphql"]
+dockerfile = ["dep:tree-sitter-dockerfile"]
+nix = ["dep:tree-sitter-nix"]
+vue = ["dep:tree-sitter-vue"]
+svelte = ["dep:tree-sitter-svelte"]
+r = ["dep:tree-sitter-r"]
+julia = ["dep:tree-sitter-julia"]
+dart = ["dep:tree-sitter-dart"]
+swift = ["dep:tree-sitter-swift"]
 
 [dependencies]
 tree-sitter = "0.24"
@@ -48,6 +79,32 @@ tree-sitter-json = { version = "0.23", optional = true }
 tree-sitter-ruby = { version = "0.23", optional = true }
 tree-sitter-c-sharp = { version = "0.23", optional = true }
 tree-sitter-php = { version = "0.23", optional = true }
+tree-sitter-html = { version = "0.23", optional = true }
+tree-sitter-css = { version = "0.25", optional = true }
+tree-sitter-bash = { version = "0.25", optional = true }
+tree-sitter-yaml = { version = "0.7", optional = true }
+tree-sitter-toml = { version = "0.20", optional = true }
+tree-sitter-md = { version = "0.5", optional = true }
+tree-sitter-kotlin = { version = "0.3", optional = true }
+tree-sitter-scala = { version = "0.26", optional = true }
+tree-sitter-haskell = { version = "0.23", optional = true }
+tree-sitter-ocaml = { version = "0.24", optional = true }
+tree-sitter-elixir = { version = "0.3", optional = true }
+tree-sitter-erlang = { version = "0.16", optional = true }
+tree-sitter-zig = { version = "1", optional = true }
+tree-sitter-lua = { version = "0.5", optional = true }
+tree-sitter-regex = { version = "0.25", optional = true }
+tree-sitter-make = { version = "1", optional = true }
+tree-sitter-sql = { version = "0.0.2", optional = true }
+tree-sitter-graphql = { version = "0.1", optional = true }
+tree-sitter-dockerfile = { version = "0.2", optional = true }
+tree-sitter-nix = { version = "0.3", optional = true }
+tree-sitter-vue = { version = "0.0.3", optional = true }
+tree-sitter-svelte = { version = "0.10", optional = true }
+tree-sitter-r = { version = "1", optional = true }
+tree-sitter-julia = { version = "0.23", optional = true }
+tree-sitter-dart = { version = "0.2", optional = true }
+tree-sitter-swift = { version = "0.7", optional = true }
 walkdir = "2"
 ignore = "0.4"
 rayon = "1.10"
