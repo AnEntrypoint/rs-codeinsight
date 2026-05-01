@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::Path;
 
 #[derive(Default, Clone)]
 pub struct DevNote {

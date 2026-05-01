@@ -39,7 +39,7 @@ pub fn format_compact(
     scans: &ScanResults,
     test_map: &TestMap,
     data_layer: &DataLayer,
-    key_locations: &KeyLocations,
+    _key_locations: &KeyLocations,
     conventions: &[LanguageConventions],
 ) -> String {
     let mut out = String::with_capacity(4096);
@@ -217,7 +217,7 @@ pub fn format_compact(
     }
 
     // ## 📊 Code Organization
-    let mut large_files: Vec<(&String, u32)> = {
+    let large_files: Vec<(&String, u32)> = {
         let mut seen: std::collections::HashSet<(String, u32)> = std::collections::HashSet::new();
         let mut v: Vec<(&String, u32)> = file_metrics.iter()
             .map(|(p, a)| (p, a.stats.lines))
