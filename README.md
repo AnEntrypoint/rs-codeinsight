@@ -188,7 +188,24 @@ codeinsight --cache /path/to/your/project
 codeinsight --read-cache /path/to/your/project
 ```
 
-The cache is written to `.codeinsight` in the project root. Use `--cache` in session-start hooks for instant reads on subsequent prompts.
+The cache is written as a **pair** in the project root:
+
+- `.codeinsight` — the analysis output (text or JSON, matching the flags used)
+- `.codeinsight.digest` — an md5 of `(sorted [rel_path | mtime_secs], GIT_HEAD, git status --porcelain line count)` computed over every file `collect_files` walked
+
+`--cache` writes both atomically. `--read-cache` re-computes the live digest, compares
+against `.codeinsight.digest`, and serves the cached content verbatim on match. On
+mismatch — file added, deleted, renamed, edited, branch switched, or working tree
+dirtied — it transparently regenerates: runs a fresh analyze, rewrites both files,
+and prints the fresh output. Consumers always get a result; there is no cache-miss
+exit code. Stderr prints `[codeinsight cache stale or missing; running fresh analyze]`
+on the regenerate path so callers can observe rebuilds.
+
+Do not read `.codeinsight` directly without first validating `.codeinsight.digest`
+against the live tree — the file alone cannot tell you whether it matches the
+current source.
+
+Use `--cache` in session-start hooks for instant reads on subsequent prompts.
 
 ### Configuration
 
