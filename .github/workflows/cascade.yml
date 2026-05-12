@@ -4,13 +4,26 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   cascade:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger rs-plugkit rebuild
+      - name: Dispatch downstream release (push to main)
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
         run: |
           gh workflow run release.yml --repo AnEntrypoint/rs-plugkit --ref main
+
+      - name: Dispatch downstream build smoke (pull_request)
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
+        run: |
+          gh workflow run build.yml --repo AnEntrypoint/rs-plugkit --ref main \
+            -f upstream_repo=${{ github.repository }} \
+            -f upstream_sha=${{ github.event.pull_request.head.sha }}
