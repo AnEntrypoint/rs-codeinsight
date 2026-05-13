@@ -1,5 +1,7 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashMap;
 use std::path::Path;
+#[cfg(not(target_arch = "wasm32"))]
 use std::process::Command;
 
 #[derive(Default)]
@@ -11,6 +13,10 @@ pub struct GitContext {
     pub hot_files: Vec<(String, u32)>,
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn analyze_git(_root: &Path) -> GitContext { GitContext::default() }
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyze_git(root: &Path) -> GitContext {
     let mut ctx = GitContext::default();
 
@@ -62,6 +68,7 @@ pub fn analyze_git(root: &Path) -> GitContext {
     ctx
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn run_git(root: &Path, args: &[&str]) -> Option<String> {
     let mut cmd = Command::new("git");
     cmd.args(args).current_dir(root);

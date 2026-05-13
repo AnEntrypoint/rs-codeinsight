@@ -1,0 +1,59 @@
+name: Wasm
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', '.gitignore']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', '.gitignore']
+  workflow_dispatch:
+
+concurrency:
+  group: wasm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm32-wasip1 target
+        run: rustup target add wasm32-wasip1
+
+      - name: Install wasi-sdk (clang + sysroot for tree-sitter C grammars)
+        run: |
+          WASI_VERSION=24
+          WASI_VERSION_FULL=${WASI_VERSION}.0
+          curl -sL -o wasi-sdk.tar.gz "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-x86_64-linux.tar.gz"
+          mkdir -p $HOME/wasi-sdk
+          tar -xzf wasi-sdk.tar.gz -C $HOME/wasi-sdk --strip-components=1
+          echo "WASI_SDK_PATH=$HOME/wasi-sdk" >> $GITHUB_ENV
+          echo "CC_wasm32_wasip1=$HOME/wasi-sdk/bin/clang" >> $GITHUB_ENV
+          echo "AR_wasm32_wasip1=$HOME/wasi-sdk/bin/llvm-ar" >> $GITHUB_ENV
+          echo "CFLAGS_wasm32_wasip1=--sysroot=$HOME/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm32-wasip1
+
+      - name: Build rs-codeinsight lib for wasm32-wasip1 (no languages)
+        run: cargo build --release --target wasm32-wasip1 --no-default-features --features wasm --lib
+
+      - name: Build rs-codeinsight lib for wasm32-wasip1 (all-languages)
+        run: cargo build --release --target wasm32-wasip1 --no-default-features --features "wasm all-languages" --lib
+
+      - name: List wasm artifacts
+        run: |
+          ls -la target/wasm32-wasip1/release/ || true
+          find target/wasm32-wasip1/release -name '*.rlib' | head -20
+
+      - name: Upload rs-codeinsight wasm rlib
+        uses: actions/upload-artifact@v4
+        with:
+          name: rs-codeinsight-wasm32-wasip1
+          path: target/wasm32-wasip1/release/librs_codeinsight.rlib
+          if-no-files-found: warn
