@@ -172,6 +172,33 @@ pub fn compute_freshness_digest(root: &Path) -> String {
     compute_freshness_digest_from_files(root, &files)
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn compute_freshness_digest_from_files(_root: &Path, files: &[(String, String, String)]) -> String {
+    use md5::{Digest, Md5};
+    let mut sorted: Vec<(String, u64)> = files.iter().map(|(rel, abs, _)| {
+        let mtime_secs = fs::metadata(abs)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        (rel.clone(), mtime_secs)
+    }).collect();
+    sorted.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut hasher = Md5::new();
+    for (rel, mt) in &sorted {
+        hasher.update(rel.as_bytes());
+        hasher.update(b"|");
+        hasher.update(mt.to_le_bytes());
+        hasher.update(b"\n");
+    }
+    let result = hasher.finalize();
+    let mut hex = String::with_capacity(32);
+    for b in result.iter() { hex.push_str(&format!("{:02x}", b)); }
+    format!("v1:{}:files={}", hex, sorted.len())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn compute_freshness_digest_from_files(root: &Path, files: &[(String, String, String)]) -> String {
     use md5::{Digest, Md5};
     use std::process::Command;
