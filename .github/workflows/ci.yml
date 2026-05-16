@@ -1,4 +1,4 @@
-name: Build
+name: Build (WASM)
 
 on:
   push:
@@ -7,65 +7,56 @@ on:
   pull_request:
     branches: [main]
     paths-ignore: ['**.md', 'docs/**', 'LICENSE', '.gitignore']
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: build-wasm-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            suffix: .exe
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            suffix: .exe
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            suffix: ""
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            suffix: ""
-            cross: true
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            suffix: ""
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            suffix: ""
-
-    runs-on: ${{ matrix.os }}
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+
+      - name: Add wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: wasm32-unknown-unknown
 
-      - name: Install cross-compilation tools (aarch64-linux)
-        if: matrix.cross == true
+      - name: Build WASM binary
+        run: cargo build --release --target wasm32-unknown-unknown --features wasm,all-languages
+
+      - name: Extract WASM artifact
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          mkdir -p release-assets
+          cp target/wasm32-unknown-unknown/release/rs_codeinsight.wasm release-assets/codeinsight.wasm
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Generate checksum
+        run: |
+          cd release-assets
+          sha256sum codeinsight.wasm | sed 's/ \*/  /' > codeinsight.wasm.sha256
+          cat codeinsight.wasm.sha256
 
-      - name: Upload artifact
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*= "//' | sed 's/".*//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create version file
+        run: |
+          echo "${{ steps.version.outputs.version }}" > release-assets/codeinsight.wasm.version
+
+      - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: codeinsight-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/codeinsight${{ matrix.suffix }}
+          name: codeinsight-wasm
+          path: release-assets/
 
   release:
     needs: build
@@ -81,24 +72,19 @@ jobs:
         with:
           path: artifacts
 
-      - name: Rename artifacts with target suffix
+      - name: Get version
+        id: version
         run: |
-          find artifacts -type f | while read f; do
-            dir=$(dirname "$f")
-            target=$(basename "$dir" | sed 's/^codeinsight-//')
-            name=$(basename "$f")
-            base="${name%.*}"
-            ext="${name##*.}"
-            if [ "$base" = "$ext" ]; then
-              mv "$f" "$dir/${name}-${target}"
-            else
-              mv "$f" "$dir/${base}-${target}.${ext}"
-            fi
-          done
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*= "//' | sed 's/".*//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: Build ${{ github.run_number }}
-          files: artifacts/**/*
+      - name: Upload to plugkit-bin Release
+        run: |
+          gh release upload "v${{ steps.version.outputs.version }}" \
+            --repo AnEntrypoint/plugkit-bin \
+            --clobber \
+            artifacts/codeinsight-wasm/codeinsight.wasm \
+            artifacts/codeinsight-wasm/codeinsight.wasm.sha256 \
+            artifacts/codeinsight-wasm/codeinsight.wasm.version || true
+        env:
+          GH_TOKEN: ${{ github.token }}
