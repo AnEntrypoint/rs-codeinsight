@@ -4,234 +4,201 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - main
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', '.gitignore']
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            artifact: codeinsight-win32-x64
-            binary: codeinsight.exe
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact: codeinsight-linux-x64
-            binary: codeinsight
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact: codeinsight-linux-arm64
-            binary: codeinsight
-          - target: x86_64-apple-darwin
-            os: macos-13
-            artifact: codeinsight-darwin-x64
-            binary: codeinsight
-          - target: aarch64-apple-darwin
-            os: macos-14
-            artifact: codeinsight-darwin-arm64
-            binary: codeinsight
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: wasm32-wasip1
+
+      - name: Install wasi-sdk (clang + sysroot for tree-sitter C grammars)
+        run: |
+          WASI_VERSION=24
+          WASI_VERSION_FULL=${WASI_VERSION}.0
+          curl -sL -o wasi-sdk.tar.gz "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-x86_64-linux.tar.gz"
+          mkdir -p $HOME/wasi-sdk
+          tar -xzf wasi-sdk.tar.gz -C $HOME/wasi-sdk --strip-components=1
+          echo "WASI_SDK_PATH=$HOME/wasi-sdk" >> $GITHUB_ENV
+          echo "CC_wasm32_wasip1=$HOME/wasi-sdk/bin/clang" >> $GITHUB_ENV
+          echo "AR_wasm32_wasip1=$HOME/wasi-sdk/bin/llvm-ar" >> $GITHUB_ENV
+          echo "CFLAGS_wasm32_wasip1=--sysroot=$HOME/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
 
       - uses: Swatinem/rust-cache@v2
+        continue-on-error: true
         with:
-          key: ${{ matrix.target }}
+          key: release-wasm32-wasip1
+          cache-on-failure: true
 
-      - name: Install cross-compilation tools
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      - name: Wipe cargo git cache and lockfile (force fresh dep resolution)
+        shell: bash
+        continue-on-error: true
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          rm -rf ~/.cargo/git/db ~/.cargo/git/checkouts || true
+          rm -f Cargo.lock
+          cargo generate-lockfile
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Build WASM
+        run: cargo build --release --target wasm32-wasip1 --no-default-features --features "wasm all-languages" --lib
 
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
+      - name: Rename WASM binary
+        shell: bash
         run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
-          cd dist && tar czf ../${{ matrix.artifact }}.tar.gz ${{ matrix.binary }}
+          cp "target/wasm32-wasip1/release/rs_codeinsight.wasm" "rs-codeinsight.wasm"
 
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          mkdir dist
-          copy target\${{ matrix.target }}\release\${{ matrix.binary }} dist\
-          cd dist && tar czf ..\${{ matrix.artifact }}.tar.gz ${{ matrix.binary }}
-
-      - name: Upload artifact
+      - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.tar.gz
+          name: rs-codeinsight.wasm
+          path: rs-codeinsight.wasm
 
-  publish-github:
+  publish-binaries:
     needs: build
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Checkout rs-codeinsight for version
+        uses: actions/checkout@v4
         with:
-          path: artifacts
+          path: rs-codeinsight-src
+          token: ${{ secrets.PUBLISHER_TOKEN }}
+          fetch-depth: 0
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*.tar.gz
-          generate_release_notes: true
-
-  publish-npm:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Prepare npm packages
+      - name: Auto-bump rs-codeinsight patch version
+        id: bump
+        shell: bash
+        working-directory: rs-codeinsight-src
+        env:
+          GH_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          git config user.name "gm-bot"
+          git config user.email "noreply@github.com"
+          git config url."https://${GH_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*= *"//;s/"//')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          sed -i "0,/^version = \".*\"/{s/^version = \".*\"/version = \"$NEW_VERSION\"/}" Cargo.toml
+          git add Cargo.toml
+          if git diff --cached --quiet; then
+            echo "No version change needed"
+            echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "chore: auto-bump version to $NEW_VERSION [skip ci]"
+            git fetch origin main
+            git rebase -s recursive -X theirs origin/main
+            git push origin HEAD:main
+            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          fi
 
-          declare -A PLATFORMS=(
-            ["codeinsight-win32-x64"]="win32 x64 codeinsight.exe"
-            ["codeinsight-linux-x64"]="linux x64 codeinsight"
-            ["codeinsight-linux-arm64"]="linux arm64 codeinsight"
-            ["codeinsight-darwin-x64"]="darwin x64 codeinsight"
-            ["codeinsight-darwin-arm64"]="darwin arm64 codeinsight"
-          )
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: bins/
 
-          for pkg in "${!PLATFORMS[@]}"; do
-            read -r os cpu binary <<< "${PLATFORMS[$pkg]}"
-            dir="npm/${pkg}"
-            mkdir -p "${dir}/bin"
+      - name: Stage release assets
+        id: stage
+        shell: bash
+        env:
+          VER: ${{ steps.bump.outputs.version }}
+        run: |
+          set -e
+          mkdir -p release-assets
+          cp bins/rs-codeinsight.wasm/rs-codeinsight.wasm release-assets/
+          cd release-assets
+          sha256sum rs-codeinsight.wasm | sed 's/ \*/  /' > rs-codeinsight.wasm.sha256
+          echo "$VER" > rs-codeinsight.wasm.version
+          ls -la
+          cat rs-codeinsight.wasm.sha256
 
-            tar xzf "artifacts/${pkg}/${pkg}.tar.gz" -C "${dir}/bin"
-            chmod +x "${dir}/bin/${binary}" 2>/dev/null || true
+      - name: Upload to plugkit-bin Release
+        env:
+          GH_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
+          VER: ${{ steps.bump.outputs.version }}
+        run: |
+          set -e
+          if ! gh release view "v$VER" --repo AnEntrypoint/plugkit-bin >/dev/null 2>&1; then
+            gh release create "v$VER" \
+              --repo AnEntrypoint/plugkit-bin \
+              --title "plugkit v$VER (WASM)" \
+              --notes "Auto-published WASM-only build from rs-codeinsight CI at $GITHUB_SHA"
+          fi
+          gh release upload "v$VER" \
+            --repo AnEntrypoint/plugkit-bin \
+            --clobber \
+            release-assets/rs-codeinsight.wasm \
+            release-assets/rs-codeinsight.wasm.sha256 \
+            release-assets/rs-codeinsight.wasm.version
 
-            cat > "${dir}/package.json" << PKGJSON
+      - name: Setup Node.js for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Create npm package structure
+        env:
+          VER: ${{ steps.bump.outputs.version }}
+        run: |
+          set -e
+          mkdir -p npm-pkg
+          cat > npm-pkg/package.json <<'EOF'
           {
-            "name": "@rs-codeinsight/${pkg#codeinsight-}",
-            "version": "${VERSION}",
-            "description": "codeinsight binary for ${os}-${cpu}",
-            "os": ["${os}"],
-            "cpu": ["${cpu}"],
-            "bin": {
-              "codeinsight": "bin/${binary}"
-            },
-            "license": "MIT",
+            "name": "@anentrypoint/rs-codeinsight-wasm",
+            "version": "VERSION_PLACEHOLDER",
+            "description": "WASM distribution of rs-codeinsight - tree-sitter codebase analyzer",
+            "main": "rs-codeinsight.wasm",
+            "types": "rs-codeinsight.d.ts",
             "repository": {
               "type": "git",
-              "url": "https://github.com/AnEntrypoint/rs-codeinsight"
+              "url": "https://github.com/AnEntrypoint/rs-codeinsight.git"
+            },
+            "keywords": ["rs-codeinsight", "wasm", "tree-sitter", "code-analysis"],
+            "author": "AnEntrypoint",
+            "license": "MIT",
+            "engines": {
+              "node": ">=18.0.0"
             }
           }
-          PKGJSON
-          done
+          EOF
+          sed -i "s/VERSION_PLACEHOLDER/$VER/" npm-pkg/package.json
+          cp release-assets/rs-codeinsight.wasm npm-pkg/
+          cp release-assets/rs-codeinsight.wasm.sha256 npm-pkg/
+          cat > npm-pkg/rs-codeinsight.d.ts <<'EOF'
+          declare const rsCodeinsightWasm: WebAssembly.Module;
+          export = rsCodeinsightWasm;
+          EOF
+          ls -la npm-pkg/
 
-          mkdir -p npm/codeinsight/bin
-
-          cat > npm/codeinsight/bin/codeinsight.js << 'WRAPPER'
-          #!/usr/bin/env node
-          const { execFileSync } = require('child_process');
-          const path = require('path');
-          const fs = require('fs');
-
-          const PLATFORMS = {
-            'win32-x64': '@rs-codeinsight/win32-x64',
-            'linux-x64': '@rs-codeinsight/linux-x64',
-            'linux-arm64': '@rs-codeinsight/linux-arm64',
-            'darwin-x64': '@rs-codeinsight/darwin-x64',
-            'darwin-arm64': '@rs-codeinsight/darwin-arm64',
-          };
-
-          const key = `${process.platform}-${process.arch}`;
-          const pkg = PLATFORMS[key];
-
-          if (!pkg) {
-            console.error(`Unsupported platform: ${key}`);
-            process.exit(1);
-          }
-
-          let binPath;
-          try {
-            const pkgPath = require.resolve(`${pkg}/package.json`);
-            const pkgDir = path.dirname(pkgPath);
-            const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-            const binName = Object.values(pkgJson.bin)[0];
-            binPath = path.join(pkgDir, binName);
-          } catch (e) {
-            console.error(`Platform package ${pkg} not found. Run: npm install ${pkg}`);
-            process.exit(1);
-          }
-
-          try {
-            execFileSync(binPath, process.argv.slice(2), {
-              stdio: 'inherit',
-              maxBuffer: 50 * 1024 * 1024,
-            });
-          } catch (e) {
-            process.exit(e.status || 1);
-          }
-          WRAPPER
-
-          cat > npm/codeinsight/package.json << PKGJSON
-          {
-            "name": "codeinsight",
-            "version": "${VERSION}",
-            "description": "Fast codebase analyzer using tree-sitter. Instant project understanding for AI coding tools.",
-            "bin": {
-              "codeinsight": "bin/codeinsight.js"
-            },
-            "optionalDependencies": {
-              "@rs-codeinsight/win32-x64": "${VERSION}",
-              "@rs-codeinsight/linux-x64": "${VERSION}",
-              "@rs-codeinsight/linux-arm64": "${VERSION}",
-              "@rs-codeinsight/darwin-x64": "${VERSION}",
-              "@rs-codeinsight/darwin-arm64": "${VERSION}"
-            },
-            "license": "MIT",
-            "repository": {
-              "type": "git",
-              "url": "https://github.com/AnEntrypoint/rs-codeinsight"
-            },
-            "homepage": "https://github.com/AnEntrypoint/rs-codeinsight",
-            "keywords": ["tree-sitter", "code-analysis", "ast", "codebase", "ai-tools", "claude-code"]
-          }
-          PKGJSON
-
-      - name: Publish platform packages
+      - name: Publish to npm
+        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VER: ${{ steps.bump.outputs.version }}
         run: |
-          for dir in npm/codeinsight-*/; do
-            cd "$dir"
-            npm publish --access public || true
-            cd ../..
-          done
-
-      - name: Publish main package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          cd npm/codeinsight
-          npm publish --access public
+          set -e
+          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "NPM_TOKEN not set; skipping npm publish"
+            exit 0
+          fi
+          cd npm-pkg
+          if npm view "@anentrypoint/rs-codeinsight-wasm@$VER" version >/dev/null 2>&1; then
+            echo "@anentrypoint/rs-codeinsight-wasm@$VER already published; skipping"
+            exit 0
+          fi
+          npm publish --access public || echo "npm publish failed (likely OTP requirement); continuing"
