@@ -125,7 +125,10 @@ pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, Strin
         .git_exclude(false)
         .filter_entry(move |entry| {
             let name = entry.file_name().to_string_lossy();
-            if matches!(name.as_ref(), "node_modules" | ".git" | "dist" | "build" | "target" | ".next" | ".nuxt" | "coverage" | "__pycache__" | ".venv" | "vendor" | ".cache" | ".output" | ".plugkit-browser-profile") {
+            if matches!(name.as_ref(), "node_modules" | ".git" | "dist" | "build" | "target" | ".next" | ".nuxt" | "coverage" | "__pycache__" | ".venv" | "vendor" | ".cache" | ".output" | ".gm") {
+                return false;
+            }
+            if name.starts_with(".plugkit-browser-profile") {
                 return false;
             }
             if entry.path().is_dir() {

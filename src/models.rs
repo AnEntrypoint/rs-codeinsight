@@ -27,11 +27,14 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
         .git_exclude(false)
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
+            if name.starts_with(".plugkit-browser-profile") {
+                return false;
+            }
             !matches!(
                 name.as_ref(),
                 "node_modules" | ".git" | "dist" | "build" | "target"
                     | ".next" | ".nuxt" | "coverage" | "__pycache__"
-                    | ".venv" | "vendor" | ".cache" | ".output"
+                    | ".venv" | "vendor" | ".cache" | ".output" | ".gm"
             )
         })
         .build();
