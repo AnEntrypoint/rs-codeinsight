@@ -20,71 +20,27 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
 
-      - name: Add wasm32-unknown-unknown target
-        run: rustup target add wasm32-unknown-unknown
+      - name: Install wasi-sdk
+        run: |
+          WASI_VERSION=24
+          WASI_VERSION_FULL=${WASI_VERSION}.0
+          curl -sL -o wasi-sdk.tar.gz "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-x86_64-linux.tar.gz"
+          mkdir -p $HOME/wasi-sdk
+          tar -xzf wasi-sdk.tar.gz -C $HOME/wasi-sdk --strip-components=1
+          echo "WASI_SDK_PATH=$HOME/wasi-sdk" >> $GITHUB_ENV
+          echo "CC_wasm32_wasip1=$HOME/wasi-sdk/bin/clang" >> $GITHUB_ENV
+          echo "AR_wasm32_wasip1=$HOME/wasi-sdk/bin/llvm-ar" >> $GITHUB_ENV
+          echo "CFLAGS_wasm32_wasip1=--sysroot=$HOME/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: wasm32-unknown-unknown
+          key: ci-wasm32-wasip1
 
-      - name: Build WASM binary
-        run: cargo build --release --target wasm32-unknown-unknown --features wasm,all-languages
+      - name: Check WASM build (no languages)
+        run: cargo check --target wasm32-wasip1 --no-default-features --features wasm --lib
 
-      - name: Extract WASM artifact
-        run: |
-          mkdir -p release-assets
-          cp target/wasm32-unknown-unknown/release/rs_codeinsight.wasm release-assets/codeinsight.wasm
-
-      - name: Generate checksum
-        run: |
-          cd release-assets
-          sha256sum codeinsight.wasm | sed 's/ \*/  /' > codeinsight.wasm.sha256
-          cat codeinsight.wasm.sha256
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*= "//' | sed 's/".*//')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create version file
-        run: |
-          echo "${{ steps.version.outputs.version }}" > release-assets/codeinsight.wasm.version
-
-      - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codeinsight-wasm
-          path: release-assets/
-
-  release:
-    needs: build
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*= "//' | sed 's/".*//')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Upload to plugkit-bin Release
-        run: |
-          gh release upload "v${{ steps.version.outputs.version }}" \
-            --repo AnEntrypoint/plugkit-bin \
-            --clobber \
-            artifacts/codeinsight-wasm/codeinsight.wasm \
-            artifacts/codeinsight-wasm/codeinsight.wasm.sha256 \
-            artifacts/codeinsight-wasm/codeinsight.wasm.version || true
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Check WASM build (all languages)
+        run: cargo check --target wasm32-wasip1 --no-default-features --features "wasm all-languages" --lib

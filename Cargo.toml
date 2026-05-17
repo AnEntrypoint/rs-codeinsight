@@ -13,14 +13,10 @@ categories = ["command-line-utilities", "development-tools"]
 [lib]
 name = "rs_codeinsight"
 path = "src/lib.rs"
-crate-type = ["rlib", "cdylib"]
-
-[[bin]]
-name = "codeinsight"
-path = "src/main.rs"
+crate-type = ["cdylib"]
 
 [features]
-default = ["all-languages"]
+default = []
 wasm = []
 all-languages = [
     "javascript","typescript","python","rust","go","c","cpp","java","json","ruby","csharp","php",
