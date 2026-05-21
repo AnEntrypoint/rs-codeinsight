@@ -60,7 +60,6 @@ pub fn format_json(
     let mut out = String::with_capacity(8192);
     out.push_str("{\n");
 
-    // project
     out.push_str("  \"project\": {\n");
     out.push_str(&format!("    \"name\": {},\n", json_str_opt(&project.name)));
     out.push_str(&format!("    \"version\": {},\n", json_str_opt(&project.version)));
@@ -69,7 +68,6 @@ pub fn format_json(
     out.push_str(&format!("    \"about\": {}\n", json_str_opt(&project.readme_excerpt)));
     out.push_str("  },\n");
 
-    // stack
     let known_services = KNOWN_SERVICES;
 
     let mut stack_parts: Vec<String> = project.frameworks.iter().cloned().collect();
@@ -89,7 +87,6 @@ pub fn format_json(
     }
     out.push_str(&format!("  \"stack\": {},\n", json_str_array(&stack_parts)));
 
-    // stats
     let total_functions: u32 = stats.by_language.values().map(|l| l.functions).sum();
     let total_classes: u32 = stats.by_language.values().map(|l| l.classes).sum();
     let total_complexity: u32 = stats.by_language.values().map(|l| l.complexity).sum();
@@ -106,7 +103,6 @@ pub fn format_json(
     out.push_str(&format!("    \"complexity\": {:.1}\n", avg_complexity));
     out.push_str("  },\n");
 
-    // languages
     let mut langs: Vec<_> = stats.by_language.iter().collect();
     langs.sort_by(|a, b| b.1.lines.cmp(&a.1.lines));
     out.push_str("  \"languages\": {");
@@ -119,7 +115,6 @@ pub fn format_json(
     out.push_str(&lang_entries.join(", "));
     out.push_str("},\n");
 
-    // scripts
     out.push_str("  \"scripts\": {");
     let mut script_entries: Vec<String> = Vec::new();
     for key in &["dev", "start", "run", "build", "test"] {
@@ -130,7 +125,6 @@ pub fn format_json(
     out.push_str(&script_entries.join(", "));
     out.push_str("},\n");
 
-    // env
     let mut all_env: Vec<String> = Vec::new();
     for analysis in file_metrics.values() {
         for v in &analysis.env_vars {
@@ -142,7 +136,6 @@ pub fn format_json(
     all_env.sort();
     out.push_str(&format!("  \"env\": {},\n", json_str_array(&all_env)));
 
-    // routes
     let mut all_routes: Vec<String> = Vec::new();
     for analysis in file_metrics.values() {
         for r in &analysis.http_routes {
@@ -153,14 +146,12 @@ pub fn format_json(
     }
     out.push_str(&format!("  \"routes\": {},\n", json_str_array(&all_routes)));
 
-    // models
     out.push_str("  \"models\": {\n");
     out.push_str(&format!("    \"names\": {},\n", json_str_array(&data_layer.model_names)));
     out.push_str(&format!("    \"orm\": {},\n", json_str_opt(&data_layer.orm)));
     out.push_str(&format!("    \"schema\": {}\n", json_str_array(&data_layer.schema_files)));
     out.push_str("  },\n");
 
-    // dirs
     out.push_str("  \"dirs\": [");
     let dir_entries: Vec<String> = key_locations.locations.iter()
         .filter(|l| l.count >= 2)
@@ -169,7 +160,6 @@ pub fn format_json(
     out.push_str(&dir_entries.join(", "));
     out.push_str("],\n");
 
-    // git
     out.push_str("  \"git\": {\n");
     out.push_str(&format!("    \"branch\": {},\n", json_str_opt(&git.branch)));
     out.push_str(&format!("    \"uncommitted\": {},\n", git.uncommitted.len()));
@@ -181,7 +171,6 @@ pub fn format_json(
     out.push_str("]\n");
     out.push_str("  },\n");
 
-    // todos
     out.push_str("  \"todos\": [");
     let mut todo_entries: Vec<String> = Vec::new();
     for n in &scans.todos {
@@ -205,7 +194,6 @@ pub fn format_json(
     out.push_str(&todo_entries.join(", "));
     out.push_str("],\n");
 
-    // tests
     let test_pct = if test_map.source_count > 0 {
         (test_map.test_count as f64 / test_map.source_count as f64 * 100.0) as u32
     } else { 0 };
@@ -215,7 +203,6 @@ pub fn format_json(
     out.push_str(&format!("    \"coverage\": {}\n", test_pct));
     out.push_str("  },\n");
 
-    // deps
     let mut ext_deps: Vec<_> = dep_graph.external_imports.iter()
         .filter(|(k, _)| !NODE_BUILTINS.contains(&k.as_str()))
         .filter(|(k, _)| !k.starts_with("@/") && !k.starts_with("./") && !k.starts_with("../"))
@@ -228,7 +215,6 @@ pub fn format_json(
     out.push_str(&dep_entries.join(", "));
     out.push_str("],\n");
 
-    // security
     out.push_str("  \"security\": [");
     let sec_entries: Vec<String> = scans.security.iter().map(|issue| {
         format!(
@@ -239,7 +225,6 @@ pub fn format_json(
     out.push_str(&sec_entries.join(", "));
     out.push_str("],\n");
 
-    // issues
     let large = file_metrics.values().filter(|a| a.stats.lines > 500).count();
     let complex_fns: usize = file_metrics.values()
         .flat_map(|a| a.func_names.iter())
@@ -254,7 +239,6 @@ pub fn format_json(
     out.push_str(&format!("    \"duplicated\": {}\n", duplicates.len()));
     out.push_str("  },\n");
 
-    // exports
     let mut exported_fns: Vec<String> = Vec::new();
     for (path, analysis) in file_metrics {
         for func in &analysis.func_names {
@@ -266,7 +250,6 @@ pub fn format_json(
     }
     out.push_str(&format!("  \"exports\": {},\n", json_str_array(&exported_fns)));
 
-    // conventions
     out.push_str("  \"conventions\": {");
     let conv_entries: Vec<String> = conventions.iter().map(|c| {
         format!("{}: {}", json_str(&c.language), json_str_array(&c.conventions))

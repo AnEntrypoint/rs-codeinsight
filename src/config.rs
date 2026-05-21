@@ -30,18 +30,15 @@ pub fn load_config(root: &Path) -> Config {
     for line in content.lines() {
         let trimmed = line.trim();
 
-        // Skip empty lines and comments
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
 
-        // Section header
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
             current_section = trimmed[1..trimmed.len() - 1].trim().to_string();
             continue;
         }
 
-        // Key = value
         if let Some(eq_pos) = trimmed.find('=') {
             let key = trimmed[..eq_pos].trim();
             let value = trimmed[eq_pos + 1..].trim();

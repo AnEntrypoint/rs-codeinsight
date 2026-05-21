@@ -2,12 +2,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-/// Parse tsconfig.json (and subdirectory tsconfigs one level deep) to extract
-/// path alias mappings.  Returns a map like `"@/" -> "src/"`.
 pub fn parse_tsconfig_paths(root: &Path) -> HashMap<String, String> {
     let mut aliases: HashMap<String, String> = HashMap::new();
 
-    // Collect candidate tsconfig files: root + immediate subdirectories
     let mut candidates: Vec<std::path::PathBuf> = vec![root.join("tsconfig.json")];
     if let Ok(entries) = fs::read_dir(root) {
         for entry in entries.flatten() {
@@ -27,26 +24,22 @@ pub fn parse_tsconfig_paths(root: &Path) -> HashMap<String, String> {
 }
 
 fn parse_tsconfig_paths_from_content(content: &str, aliases: &mut HashMap<String, String>) {
-    // Find "paths" object inside "compilerOptions"
     let compiler_pos = match content.find("\"compilerOptions\"") {
         Some(p) => p,
         None => return,
     };
     let after_compiler = &content[compiler_pos..];
 
-    // Find the opening brace of compilerOptions value
     let brace_start = match after_compiler.find('{') {
         Some(b) => compiler_pos + b,
         None => return,
     };
 
-    // Find matching closing brace (simple nesting counter)
     let co_block = match find_matching_brace(&content[brace_start..]) {
         Some(end) => &content[brace_start..brace_start + end + 1],
         None => return,
     };
 
-    // Find "paths" inside compilerOptions block
     let paths_pos = match co_block.find("\"paths\"") {
         Some(p) => p,
         None => return,
@@ -63,11 +56,8 @@ fn parse_tsconfig_paths_from_content(content: &str, aliases: &mut HashMap<String
         None => return,
     };
 
-    // Parse entries like `"@/*": ["./src/*"]` or `"@components/*": ["components/*"]`
-    // Split by lines for simpler parsing
     for line in paths_block.lines() {
         let trimmed = line.trim().trim_end_matches(',');
-        // Expect pattern: "alias_pattern": ["replacement_pattern"]
         if !trimmed.contains(':') {
             continue;
         }
@@ -78,7 +68,6 @@ fn parse_tsconfig_paths_from_content(content: &str, aliases: &mut HashMap<String
         let key = parts[0].trim().trim_matches('"');
         let val_part = parts[1].trim();
 
-        // Extract the first value from the array ["./src/*"]
         if !val_part.starts_with('[') {
             continue;
         }
@@ -97,16 +86,11 @@ fn parse_tsconfig_paths_from_content(content: &str, aliases: &mut HashMap<String
             continue;
         }
 
-        // Convert glob patterns to prefix/replacement:
-        //   "@/*"       -> alias_prefix = "@/"
-        //   "./src/*"   -> replacement  = "src/"
-        //   "src/*"     -> replacement  = "src/"
         let alias_prefix = key.trim_end_matches('*');
         let replacement = first_val
             .trim_start_matches("./")
             .trim_end_matches('*');
 
-        // Ensure both end with /
         let alias_prefix = if alias_prefix.ends_with('/') {
             alias_prefix.to_string()
         } else if alias_prefix.is_empty() {
@@ -171,7 +155,6 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
         parse_package_json(&content, &mut ctx);
     }
 
-    // Check root and immediate subdirs for README
     let mut readme_dirs = vec![root.to_path_buf()];
     if let Ok(entries) = fs::read_dir(root) {
         for entry in entries.flatten() {
@@ -213,14 +196,12 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
         ctx.package_manager = Some("npm".into());
     }
 
-    // Add root framework if detected
     if let Some(ref fw) = ctx.framework {
         if !ctx.frameworks.contains(fw) {
             ctx.frameworks.push(fw.clone());
         }
     }
 
-    // Scan immediate subdirectories for package.json and go.mod
     let js_frameworks: &[(&str, &str)] = &[
         ("next", "Next.js"), ("react", "React"), ("vue", "Vue"),
         ("express", "Express"), ("fastify", "Fastify"), ("koa", "Koa"),
@@ -234,7 +215,6 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
             let path = entry.path();
             if !path.is_dir() { continue; }
 
-            // Check subdirectory package.json
             let sub_pkg = path.join("package.json");
             if let Ok(content) = fs::read_to_string(&sub_pkg) {
                 for (dep, name) in js_frameworks {
@@ -242,7 +222,6 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
                         ctx.frameworks.push(name.to_string());
                     }
                 }
-                // Extract scripts if root had none
                 if ctx.scripts.is_empty() {
                     let dir_name = path.file_name()
                         .map(|n| n.to_string_lossy().to_string())
@@ -256,7 +235,6 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
                         }
                     }
                 }
-                // Use subdir project info if root had none
                 if ctx.name.is_none() {
                     ctx.name = extract_string(&content, "name");
                     ctx.version = extract_string(&content, "version");
@@ -264,11 +242,9 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
                 }
             }
 
-            // Check subdirectory go.mod
             let sub_gomod = path.join("go.mod");
             if let Ok(content) = fs::read_to_string(&sub_gomod) {
                 parse_go_mod(&content, &mut ctx);
-                // Detect Go entry point
                 let dir_name = path.file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_default();
@@ -294,18 +270,15 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
         }
     }
 
-    // Check root go.mod
     let root_gomod = root.join("go.mod");
     if let Ok(content) = fs::read_to_string(&root_gomod) {
         parse_go_mod(&content, &mut ctx);
     }
 
-    // Check for Cargo.toml (Rust)
     if root.join("Cargo.toml").exists() && ctx.project_type == "unknown" {
         ctx.project_type = "rust".into();
     }
 
-    // Check for Python markers
     if (root.join("pyproject.toml").exists() || root.join("requirements.txt").exists())
         && ctx.project_type == "unknown"
     {
@@ -316,7 +289,6 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
 }
 
 fn parse_go_mod(content: &str, ctx: &mut ProjectContext) {
-    // Extract module path from first line
     if let Some(first_line) = content.lines().next() {
         if first_line.starts_with("module ") {
             let module_path = first_line.trim_start_matches("module ").trim().to_string();
@@ -326,7 +298,6 @@ fn parse_go_mod(content: &str, ctx: &mut ProjectContext) {
         }
     }
 
-    // Detect Go frameworks
     let go_frameworks: &[(&str, &str)] = &[
         ("gin-gonic/gin", "Gin"),
         ("labstack/echo", "Echo"),
@@ -341,7 +312,6 @@ fn parse_go_mod(content: &str, ctx: &mut ProjectContext) {
         }
     }
 
-    // Mark Go as detected
     if ctx.project_type == "unknown" {
         ctx.project_type = "go".into();
     }

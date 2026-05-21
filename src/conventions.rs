@@ -10,7 +10,6 @@ pub fn detect_conventions(
     file_metrics: &HashMap<String, FileAnalysis>,
     file_languages: &HashMap<String, String>,
 ) -> Vec<LanguageConventions> {
-    // Group files by language
     let mut by_lang: HashMap<String, Vec<&FileAnalysis>> = HashMap::new();
     let mut paths_by_lang: HashMap<String, Vec<&str>> = HashMap::new();
 
@@ -34,7 +33,6 @@ pub fn detect_conventions(
         };
 
         if !conventions.is_empty() {
-            // Use abbreviated language name for output
             let display_lang = match lang.as_str() {
                 "JavaScript" => "JS",
                 "TypeScript" => "TS",
@@ -52,10 +50,8 @@ pub fn detect_conventions(
         }
     }
 
-    // Sort by language name for consistent output
     result.sort_by(|a, b| a.language.cmp(&b.language));
 
-    // Merge JS/TS/TSX if they have the same conventions
     merge_similar(&mut result);
 
     result
@@ -64,7 +60,6 @@ pub fn detect_conventions(
 fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<String> {
     let mut conventions = Vec::new();
 
-    // Sum all counters
     let mut indent_2 = 0u32;
     let mut indent_4 = 0u32;
     let mut indent_tab = 0u32;
@@ -92,7 +87,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         default_exp += a.default_export_count;
         named_exp += a.named_export_count;
 
-        // Count @/ imports vs relative imports
         for imp in &a.import_paths {
             if imp.starts_with("@/") || imp.starts_with("~/") {
                 at_imports += 1;
@@ -102,7 +96,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         }
     }
 
-    // Indent
     let indent_total = indent_2 + indent_4 + indent_tab;
     if indent_total > 0 {
         if indent_2 >= indent_4 && indent_2 >= indent_tab {
@@ -114,7 +107,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         }
     }
 
-    // Quotes (only if ratio > 60%)
     let q_total = single_q + double_q;
     if q_total > 0 {
         let single_ratio = single_q as f64 / q_total as f64;
@@ -126,7 +118,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         }
     }
 
-    // Semicolons (only if ratio > 70%)
     let semi_total = semi + no_semi;
     if semi_total > 0 {
         let semi_ratio = semi as f64 / semi_total as f64;
@@ -138,7 +129,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         }
     }
 
-    // Functions (only if ratio > 60%)
     let fn_total = arrow + regular;
     if fn_total > 0 {
         let arrow_ratio = arrow as f64 / fn_total as f64;
@@ -150,7 +140,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         }
     }
 
-    // Exports (only if ratio > 60%)
     let exp_total = default_exp + named_exp;
     if exp_total > 0 {
         let default_ratio = default_exp as f64 / exp_total as f64;
@@ -162,7 +151,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         }
     }
 
-    // Imports (only if ratio > 60%)
     let imp_total = at_imports + rel_imports;
     if imp_total > 0 {
         let at_ratio = at_imports as f64 / imp_total as f64;
@@ -174,7 +162,6 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         }
     }
 
-    // File naming
     if let Some(naming) = detect_file_naming(paths) {
         conventions.push(naming);
     }
@@ -185,10 +172,8 @@ fn detect_js_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
 fn detect_go_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<String> {
     let mut conventions = Vec::new();
 
-    // Go always uses tabs
     conventions.push("tabs".to_string());
 
-    // Check for if err != nil pattern
     let mut err_count = 0u32;
     for a in analyses {
         for (pattern, count) in &a.call_patterns {
@@ -201,7 +186,6 @@ fn detect_go_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
         conventions.push("if err != nil".to_string());
     }
 
-    // File naming
     if let Some(naming) = detect_file_naming(paths) {
         conventions.push(naming);
     }
@@ -212,7 +196,6 @@ fn detect_go_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<Stri
 fn detect_python_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<String> {
     let mut conventions = Vec::new();
 
-    // Indent detection
     let mut indent_2 = 0u32;
     let mut indent_4 = 0u32;
     let mut indent_tab = 0u32;
@@ -238,7 +221,6 @@ fn detect_python_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<
         }
     }
 
-    // Quotes
     let q_total = single_q + double_q;
     if q_total > 0 {
         let single_ratio = single_q as f64 / q_total as f64;
@@ -250,7 +232,6 @@ fn detect_python_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<
         }
     }
 
-    // File naming
     if let Some(naming) = detect_file_naming(paths) {
         conventions.push(naming);
     }
@@ -261,7 +242,6 @@ fn detect_python_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<
 fn detect_rust_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<String> {
     let mut conventions = Vec::new();
 
-    // Check call_patterns for error handling style
     let mut unwrap_count = 0u32;
     let mut expect_count = 0u32;
 
@@ -285,7 +265,6 @@ fn detect_rust_conventions(analyses: &[&FileAnalysis], paths: &[&str]) -> Vec<St
         }
     }
 
-    // File naming
     if let Some(naming) = detect_file_naming(paths) {
         conventions.push(naming);
     }
@@ -300,11 +279,9 @@ fn detect_file_naming(paths: &[&str]) -> Option<String> {
     let mut snake = 0u32;
 
     for path in paths {
-        // Get just the filename without extension
         let file_name = path.rsplit('/').next().unwrap_or(path);
         let stem = file_name.split('.').next().unwrap_or(file_name);
 
-        // Skip very short names or index files
         if stem.len() <= 1 || stem == "index" || stem == "main" || stem == "lib" || stem == "mod" {
             continue;
         }
@@ -318,7 +295,6 @@ fn detect_file_naming(paths: &[&str]) -> Option<String> {
         } else if stem.chars().any(|c| c.is_uppercase()) {
             camel += 1;
         } else {
-            // all lowercase, no separators — could be anything, skip
         }
     }
 
@@ -340,12 +316,10 @@ fn detect_file_naming(paths: &[&str]) -> Option<String> {
 }
 
 fn merge_similar(result: &mut Vec<LanguageConventions>) {
-    // Find indices for JS, TS, TSX
     let js_idx = result.iter().position(|c| c.language == "JS");
     let ts_idx = result.iter().position(|c| c.language == "TS");
     let tsx_idx = result.iter().position(|c| c.language == "TSX");
 
-    // Check if all three exist and have same conventions
     let all_same = match (js_idx, ts_idx, tsx_idx) {
         (Some(j), Some(t), Some(x)) => {
             result[j].conventions == result[t].conventions
@@ -357,7 +331,6 @@ fn merge_similar(result: &mut Vec<LanguageConventions>) {
     if all_same {
         if let Some(j) = js_idx {
             let merged_convs = result[j].conventions.clone();
-            // Remove in reverse order of index to avoid invalidation
             let mut indices = vec![js_idx.unwrap(), ts_idx.unwrap(), tsx_idx.unwrap()];
             indices.sort_unstable_by(|a, b| b.cmp(a));
             for idx in indices {
@@ -372,7 +345,6 @@ fn merge_similar(result: &mut Vec<LanguageConventions>) {
         }
     }
 
-    // Check if JS and TS match but TSX differs
     let js_ts_same = match (js_idx, ts_idx) {
         (Some(j), Some(t)) => result[j].conventions == result[t].conventions,
         _ => false,
@@ -395,7 +367,6 @@ fn merge_similar(result: &mut Vec<LanguageConventions>) {
         }
     }
 
-    // Check if TS and TSX match but JS differs (or JS absent)
     let ts_tsx_same = match (ts_idx, tsx_idx) {
         (Some(t), Some(x)) => result[t].conventions == result[x].conventions,
         _ => false,

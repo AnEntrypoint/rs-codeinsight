@@ -4,11 +4,30 @@
 .DS_Store
 Thumbs.db
 .gm-stop-verified
-
-.code-search/*.stackdump
 dist/
-.gm/
+.plugkit-browser-profile/
+.plugkit-browser-profile-*/
+.plugkit-agent-worktree/
+*.stackdump
+.code-search/
 .codeinsight
 .codeinsight/
-rs-learn.db
-.plugkit-browser-profile/
+# >>> gm managed (do not edit between markers)
+.gm/gm-fired-*
+.gm/residual-check-fired
+.gm/prd-state.json
+.gm/rslearn-counter.json
+.gm/git-block-counter.json
+.gm/learning-state.md
+.gm/trajectory-drafts/
+.gm/ingest-drafts/
+.gm/needs-gm
+.gm/lastskill
+.gm/turn-state.json
+.gm/no-memorize-this-turn
+.gm/prd.paused.yml
+.gm/rs-learn.db-shm
+.gm/rs-learn.db-wal
+.gm/exec-spool/
+# tracked: .gm/rs-learn.db, .gm/code-search/, .gm/disciplines/, AGENTS.md, .gm/prd.yml
+# <<< gm managed
