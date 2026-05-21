@@ -26,7 +26,6 @@ pub struct LangStats {
     pub complexity: u32,
 }
 
-
 pub fn format_compact(
     stats: &AggregatedStats,
     file_metrics: &HashMap<String, FileAnalysis>,
@@ -49,7 +48,6 @@ pub fn format_compact(
     let total_cx: u32 = stats.by_language.values().map(|l| l.complexity).sum();
     let avg_cx = if total_fn > 0 { format!("{:.1}", total_cx as f64 / total_fn as f64) } else { "0".into() };
 
-    // ## 🎯 Project header
     if let Some(ref name) = project.name {
         let ver = project.version.as_deref().unwrap_or("");
         let desc = project.description.as_deref().unwrap_or("");
@@ -75,7 +73,6 @@ pub fn format_compact(
         }
     }
 
-    // Quick start scripts
     let mut scripts_parts = Vec::new();
     if let Some(dev) = project.scripts.get("dev") { scripts_parts.push(format!("`{dev}`")); }
     else if let Some(start) = project.scripts.get("start") { scripts_parts.push(format!("`{start}`")); }
@@ -85,11 +82,9 @@ pub fn format_compact(
         let _ = writeln!(out, "## 🚀 Quick Start\n\n{}\n", scripts_parts.join(" | "));
     }
 
-    // Stats line + legend
     let _ = writeln!(out, "# {}f {}L {}fn {}cls cx{}", stats.files, fmt_k(stats.total_lines), total_fn, total_cls, avg_cx);
     out.push_str("*Legend: f=files L=lines fn=functions cls=classes cx=avg-complexity | file:line:name(NL)=location Np=params | ↑N=imports-from ↓N=imported-by (N)=occurrences (+N)=more | 🔄circular 🏝️isolated 🔥complex 📋duplicated 📁large*\n\n");
 
-    // Langs
     let mut langs: Vec<_> = stats.by_language.iter().collect();
     langs.sort_by(|a, b| b.1.lines.cmp(&a.1.lines));
     let lang_str: Vec<String> = langs.iter().take(4).map(|(name, data)| {
@@ -98,7 +93,6 @@ pub fn format_compact(
     }).collect();
     let _ = writeln!(out, "**Langs:** {}\n", lang_str.join(" "));
 
-    // ## 🛠️ Tech Stack
     let mut stack_parts: Vec<String> = project.frameworks.iter().cloned().collect();
     for (prefix, label) in KNOWN_SERVICES {
         let found = dep_graph.external_imports.keys().any(|k| k == *prefix || k.starts_with(&format!("{prefix}/")))
@@ -143,7 +137,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## ⚡ Code Patterns
     let total_async: u32 = file_metrics.values().map(|a| a.async_count).sum();
     let total_await: u32 = file_metrics.values().map(|a| a.await_count).sum();
     let total_promise: u32 = file_metrics.values().map(|a| a.promise_count).sum();
@@ -176,7 +169,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## 🔗 I/O & Integration
     let all_env: Vec<String> = file_metrics.values().flat_map(|a| a.env_vars.iter().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
     let total_sql: u32 = file_metrics.values().map(|a| a.sql_count).sum();
     let total_files: u32 = file_metrics.values().map(|a| a.file_io_count).sum();
@@ -216,7 +208,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## 📊 Code Organization
     let large_files: Vec<(&String, u32)> = {
         let mut seen: std::collections::HashSet<(String, u32)> = std::collections::HashSet::new();
         let mut v: Vec<(&String, u32)> = file_metrics.iter()
@@ -283,7 +274,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## 🔄 Architecture (layered flow, only when >=3 files)
     if stats.files >= 3 && !dep_graph.coupling.is_empty() {
         out.push_str("## 🔄 Architecture\n\n");
         let mut connections: Vec<(&String, u32, u32)> = dep_graph.coupling.iter()
@@ -344,7 +334,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## 🔌 API Surface
     let mut exported_fns: Vec<String> = Vec::new();
     for (path, a) in file_metrics {
         let fname = path.rsplit('/').next().unwrap_or(path);
@@ -378,7 +367,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## 🚨 Issues
     let mut issues = Vec::new();
     let complex_fns: Vec<_> = {
         let mut v: Vec<(String, u32, String, u32)> = Vec::new();
@@ -439,7 +427,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## 🧹 Dead Code & Tests
     let has_dead = !dead_code.orphaned_files.is_empty() || !dead_code.unused_exports.is_empty() || test_map.test_count > 0;
     if has_dead {
         out.push_str("## 🧹 Dead Code & Tests\n\n");
@@ -485,7 +472,6 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    // ## 📦 Modules
     if stats.files >= 5 && !dep_graph.modules.is_empty() {
         let mut mods: Vec<_> = dep_graph.modules.iter().collect();
         mods.sort_by(|a, b| b.1.connections.cmp(&a.1.connections));
@@ -499,7 +485,6 @@ pub fn format_compact(
         }
     }
 
-    // ## 📄 File Index
     out.push_str("## 📄 File Index\n\n");
     let mut sorted_files: Vec<_> = file_metrics.iter().collect();
     sorted_files.sort_by_key(|(p, _)| p.as_str());
@@ -527,7 +512,6 @@ pub fn format_compact(
         let _ = writeln!(out, "*+{file_overflow} more files*");
     }
 
-    // Tooling + conventions + git — appended after file index as metadata
     let mut meta = Vec::new();
     if git.is_repo {
         if let Some(ref branch) = git.branch {

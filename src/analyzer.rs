@@ -69,10 +69,8 @@ pub fn analyze_tree(tree: &Tree, source: &str) -> FileAnalysis {
     analysis.stats.lines = source.lines().count() as u32;
     traverse(tree.root_node(), source, &mut analysis, 0);
 
-    // Convention detection from source text
     for line in source.lines() {
         if line.is_empty() { continue; }
-        // Indent detection
         if line.starts_with('\t') {
             analysis.indent_tab += 1;
         } else if line.starts_with("    ") {
@@ -80,13 +78,11 @@ pub fn analyze_tree(tree: &Tree, source: &str) -> FileAnalysis {
         } else if line.starts_with("  ") && !line.starts_with("    ") {
             analysis.indent_2space += 1;
         }
-        // Semicolon detection (for JS/TS — caller filters by language)
         let trimmed = line.trim();
         if !trimmed.is_empty() && !trimmed.starts_with("//") && !trimmed.starts_with("/*") && !trimmed.starts_with("*") {
             if trimmed.ends_with(';') {
                 analysis.semicolon_lines += 1;
             } else if trimmed.ends_with('{') || trimmed.ends_with('}') || trimmed.ends_with(',') || trimmed.ends_with('(') || trimmed.ends_with(')') {
-                // structural lines — don't count for semicolon detection
             } else {
                 analysis.no_semicolon_lines += 1;
             }
@@ -165,12 +161,8 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
             }
         }
 
-        // Improvement 5: Dynamic import detection — import('./path')
-        // Look for call_expression where the function part is "import" keyword
-        // tree-sitter may represent dynamic import as call_expression with "import" identifier
         let full_text = node_text(node, source);
         if full_text.starts_with("import(") || full_text.starts_with("import (") {
-            // Extract the string argument from inside import('...')
             if let Some(start_q) = full_text.find(|c: char| c == '\'' || c == '"') {
                 let quote_char = full_text.as_bytes()[start_q] as char;
                 if let Some(end_q) = full_text[start_q + 1..].find(quote_char) {
@@ -183,15 +175,10 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // Improvement 4: Rust mod declarations — `mod foo;` (without body)
     if kind == "mod_item" {
         let text = node_text(node, source).trim().to_string();
-        // mod foo; has no body block — it ends with semicolon, not braces
-        // mod foo { ... } has a body — we skip those
         if text.ends_with(';') {
-            // Extract the module name (the identifier child)
             if let Some(name) = extract_name(node, source) {
-                // Add with special prefix so resolve_import can detect it
                 analysis.import_paths.insert(format!("rust_mod:{}", name));
             }
         }
@@ -224,27 +211,22 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         _ => {}
     }
 
-    // --- call_patterns, file I/O, JSON ops, SQL, fetch, HTTP routes, event patterns, promise ---
     if kind == "call_expression" {
         if let Some(func_node) = node.child(0) {
             let callee = node_text(func_node, source);
 
-            // call_patterns: record function name if under 30 chars
             if callee.len() <= 30 {
                 *analysis.call_patterns.entry(callee.to_string()).or_insert(0) += 1;
             }
 
-            // promise detection
             if callee == "Promise" || callee.starts_with("Promise.") {
                 analysis.promise_count += 1;
             }
 
-            // fetch detection
             if callee == "fetch" {
                 analysis.fetch_count += 1;
             }
 
-            // file I/O detection
             match callee {
                 c if c.contains("readFile")
                     || c.contains("writeFile")
@@ -258,12 +240,10 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
                 _ => {}
             }
 
-            // JSON ops detection
             if callee == "JSON.parse" || callee == "JSON.stringify" {
                 analysis.json_op_count += 1;
             }
 
-            // SQL detection
             if callee.ends_with(".query")
                 || callee.ends_with(".execute")
                 || callee.contains("SELECT")
@@ -272,17 +252,14 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
                 analysis.sql_count += 1;
             }
 
-            // event listeners: .on, .addEventListener
             if callee.ends_with(".on") || callee.ends_with(".addEventListener") {
                 analysis.event_listeners += 1;
             }
 
-            // event emitters: .emit, .dispatch
             if callee.ends_with(".emit") || callee.ends_with(".dispatch") {
                 analysis.event_emitters += 1;
             }
 
-            // HTTP routes: .get/.post/.put/.delete/.patch with a route string argument
             let route_methods = [".get", ".post", ".put", ".delete", ".patch"];
             for method in &route_methods {
                 if callee.ends_with(method) {
@@ -309,7 +286,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- async / await ---
     if kind == "await_expression" {
         analysis.await_count += 1;
     }
@@ -322,7 +298,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- callbacks: arrow_function or function_expression whose parent is "arguments" ---
     if kind == "arrow_function" || kind == "function_expression" {
         if let Some(parent) = node.parent() {
             if parent.kind() == "arguments" {
@@ -331,7 +306,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- try / throw ---
     if kind == "try_statement" {
         analysis.try_catch_count += 1;
     }
@@ -339,14 +313,12 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         analysis.throw_count += 1;
     }
 
-    // --- constants: module-level const declarations ---
     if kind == "lexical_declaration" {
         let text = node_text(node, source);
         if let Some(parent) = node.parent() {
             let pk = parent.kind();
             if pk == "program" || pk == "export_statement" {
                 if text.starts_with("const ") {
-                    // extract name = value from "const NAME = VALUE..."
                     let rest = &text["const ".len()..];
                     if let Some(eq_pos) = rest.find('=') {
                         let name = rest[..eq_pos].trim().to_string();
@@ -356,7 +328,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
                         }
                     }
                 } else if text.starts_with("let ") {
-                    // global_state: module-level let
                     let rest = &text["let ".len()..];
                     let name = rest.split(&['=', ';', ' ', ','][..]).next().unwrap_or("").trim().to_string();
                     if !name.is_empty() {
@@ -367,7 +338,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- global_state: module-level var (variable_declaration) ---
     if kind == "variable_declaration" {
         if let Some(parent) = node.parent() {
             let pk = parent.kind();
@@ -382,7 +352,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- env_vars: process.env.WORD ---
     {
         let text = node_text(node, source);
         let mut search_from = 0;
@@ -400,7 +369,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- urls: http(s) URLs in string/template_string nodes ---
     if kind == "string" || kind == "string_literal" || kind == "template_string" {
         let text = node_text(node, source);
         for prefix in &["https://", "http://"] {
@@ -419,7 +387,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- SQL in string literals ---
     if kind == "string" || kind == "string_literal" || kind == "template_string" {
         let text = node_text(node, source);
         let upper = text.to_uppercase();
@@ -428,7 +395,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- identifiers: count all identifier/property_identifier/type_identifier under 50 chars ---
     if kind == "identifier" || kind == "property_identifier" || kind == "type_identifier" {
         let text = node_text(node, source);
         if text.len() < 50 {
@@ -436,7 +402,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- Convention detection: quotes ---
     if kind == "string" || kind == "string_fragment" || kind == "string_literal" {
         let text = node_text(node, source);
         if text.starts_with('\'') {
@@ -446,14 +411,12 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- Convention detection: arrow vs regular functions ---
     if kind == "arrow_function" {
         analysis.arrow_fn_count += 1;
     } else if kind == "function_declaration" || kind == "function" {
         analysis.regular_fn_count += 1;
     }
 
-    // --- Convention detection: export style ---
     if kind.contains("export") {
         let text = node_text(node, source);
         if text.starts_with("export default") {
@@ -463,7 +426,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         }
     }
 
-    // --- Convention detection: import style ---
     if kind.contains("import") {
         let text = node_text(node, source);
         if text.contains('{') {

@@ -57,7 +57,6 @@ pub fn build_dep_graph(
         let is_py = from_path.ends_with(".py");
 
         for imp in &import_paths {
-            // Improvement 4: Rust mod resolution
             if imp.starts_with("rust_mod:") {
                 let mod_name = &imp["rust_mod:".len()..];
                 let resolved_list = resolve_rust_import(mod_name, from_path, file_analysis);
@@ -72,7 +71,6 @@ pub fn build_dep_graph(
                 continue;
             }
 
-            // Improvement 2: Go package-level import resolution
             if is_go {
                 let resolved_list = resolve_go_import(imp, file_analysis, go_modules);
                 if !resolved_list.is_empty() {
@@ -88,7 +86,6 @@ pub fn build_dep_graph(
                 }
             }
 
-            // Improvement 3: Python import resolution
             if is_py {
                 let resolved_list = resolve_python_import(imp, &from_dir, file_analysis);
                 if !resolved_list.is_empty() {
@@ -104,7 +101,6 @@ pub fn build_dep_graph(
                 }
             }
 
-            // Improvement 1: tsconfig path alias resolution (before relative check)
             if let Some(resolved) = resolve_alias_import(imp, path_aliases, file_analysis) {
                 if let Some(node) = nodes.get_mut(&resolved) {
                     node.imported_by.insert(from_path.clone());
@@ -115,7 +111,6 @@ pub fn build_dep_graph(
                 continue;
             }
 
-            // Existing relative import resolution
             if let Some(resolved) = resolve_import(imp, &from_dir, file_analysis) {
                 if let Some(node) = nodes.get_mut(&resolved) {
                     node.imported_by.insert(from_path.clone());
@@ -127,7 +122,6 @@ pub fn build_dep_graph(
         }
     }
 
-    // Improvement 6: Barrel re-export tracing (2 passes, limited to 2 levels)
     for _level in 0..2 {
         let snapshot: HashMap<String, (HashSet<String>, HashSet<String>)> = nodes
             .iter()
@@ -135,12 +129,9 @@ pub fn build_dep_graph(
             .collect();
 
         for (barrel_path, (barrel_imports_from, barrel_imported_by)) in &snapshot {
-            // A potential barrel file: imported by others AND imports from others
             if barrel_imported_by.is_empty() || barrel_imports_from.is_empty() {
                 continue;
             }
-            // Add transitive edges: everything that imports the barrel also depends
-            // on everything the barrel imports from
             for importer in barrel_imported_by {
                 for target in barrel_imports_from {
                     if importer == target || importer == barrel_path {
@@ -183,7 +174,6 @@ pub fn build_dep_graph(
 
     let circular = detect_circular(&nodes);
 
-    // Collect first-level directory names from the project for filtering local paths
     let project_dirs: HashSet<String> = file_analysis.keys()
         .filter_map(|p| {
             let normalized = p.replace('\\', "/");
@@ -192,32 +182,25 @@ pub fn build_dep_graph(
         })
         .collect();
 
-    // Build external_imports: non-relative import paths with counts
     let mut external_imports: HashMap<String, u32> = HashMap::new();
     for (_path, (import_paths, _exported_names)) in file_analysis {
         for imp in import_paths {
             if !imp.starts_with('.') {
-                // Filter out path aliases (e.g. @/ prefix)
                 if imp.starts_with("@/") {
                     continue;
                 }
-                // Filter out Rust mod markers
                 if imp.starts_with("rust_mod:") {
                     continue;
                 }
-                // Filter out Go local paths
                 if imp.contains("/internal/") || imp.contains("/handlers/") || imp.contains("/cmd/") {
                     continue;
                 }
-                // Filter out imports that match project directory names
                 let first_component = imp.split('/').next().unwrap_or(imp);
                 if !imp.starts_with('@') && !imp.starts_with("github.com") && project_dirs.contains(first_component) {
                     continue;
                 }
 
-                // Use the first segment as the package name (e.g. "@foo/bar" -> "@foo/bar", "express" -> "express")
                 let pkg = if imp.starts_with('@') {
-                    // Scoped package: take first two segments
                     let parts: Vec<&str> = imp.splitn(3, '/').collect();
                     if parts.len() >= 2 {
                         format!("{}/{}", parts[0], parts[1])
@@ -225,7 +208,6 @@ pub fn build_dep_graph(
                         imp.clone()
                     }
                 } else if imp.starts_with("github.com/") {
-                    // Go import: extract last path component for display
                     imp.rsplit('/').next().unwrap_or(imp).to_string()
                 } else {
                     imp.split('/').next().unwrap_or(imp).to_string()
@@ -235,7 +217,6 @@ pub fn build_dep_graph(
         }
     }
 
-    // Build cross_module_deps: pairs where first path component differs
     let mut cross_module_deps: Vec<(String, String)> = Vec::new();
     let mut seen_pairs: HashSet<(String, String)> = HashSet::new();
     for (from_path, node) in &nodes {
@@ -255,12 +236,10 @@ pub fn build_dep_graph(
         }
     }
 
-    // Build modules: group files by first path component
     let mut modules: HashMap<String, ModuleInfo> = HashMap::new();
     for (path, node) in &nodes {
         let module_name = first_path_component(path);
         if module_name.is_empty() || module_name == path.as_str() {
-            // File at root, use filename without extension as module
             continue;
         }
         let info = modules.entry(module_name).or_insert_with(|| ModuleInfo {
@@ -323,8 +302,6 @@ fn resolve_import(
     None
 }
 
-/// Improvement 1: Resolve a path alias import (e.g. `@/components/Button`)
-/// by checking each alias prefix and replacing it with the corresponding directory.
 fn resolve_alias_import(
     import_path: &str,
     path_aliases: &HashMap<String, String>,
@@ -335,12 +312,10 @@ fn resolve_alias_import(
             let rest = &import_path[alias_prefix.len()..];
             let resolved_base = format!("{}{}", replacement, rest).replace('\\', "/");
 
-            // Try exact match
             if files.contains_key(&resolved_base) {
                 return Some(resolved_base);
             }
 
-            // Try with extensions
             let exts = [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"];
             let no_ext = resolved_base
                 .trim_end_matches(".js")
@@ -357,7 +332,6 @@ fn resolve_alias_import(
                 }
             }
 
-            // Try index files
             let idx_exts = ["/index.js", "/index.ts", "/index.jsx", "/index.tsx"];
             for ext in &idx_exts {
                 let with_idx = format!("{}{}", resolved_base.trim_end_matches('/'), ext);
@@ -366,8 +340,6 @@ fn resolve_alias_import(
                 }
             }
 
-            // Also try with each top-level directory prefix (for monorepos where
-            // files are stored as "subdir/src/..." in the analysis map)
             let top_dirs: HashSet<String> = files
                 .keys()
                 .filter_map(|p| {
@@ -407,10 +379,6 @@ fn resolve_alias_import(
     None
 }
 
-/// Improvement 2: Resolve Go package imports.
-/// Go imports reference packages (directories), not files. When file A imports
-/// `github.com/user/repo/internal/handlers`, ALL .go files in the
-/// `internal/handlers/` directory are dependencies.
 fn resolve_go_import(
     import_path: &str,
     files: &HashMap<String, (HashSet<String>, HashSet<String>)>,
@@ -420,20 +388,14 @@ fn resolve_go_import(
 
     for module_path in go_modules {
         if import_path.starts_with(module_path.as_str()) {
-            // Strip the module path to get a relative directory
             let rest = import_path[module_path.len()..]
                 .trim_start_matches('/')
                 .replace('\\', "/");
 
-            // Find all .go files whose path starts with this directory
             for file_path in files.keys() {
                 let normalized = file_path.replace('\\', "/");
                 if normalized.ends_with(".go") {
-                    // Check if the file is in this package directory
-                    // The file could be at "rest/something.go" or "topdir/rest/something.go"
-                    // and the file should be directly in the directory (not a subdirectory)
 
-                    // Try direct match: file is at `rest/file.go`
                     if let Some(parent) = normalized.rsplit_once('/') {
                         if parent.0 == rest || parent.0.ends_with(&format!("/{}", rest)) {
                             results.push(file_path.clone());
@@ -447,9 +409,6 @@ fn resolve_go_import(
     results
 }
 
-/// Improvement 3: Resolve Python imports.
-/// Converts dot notation to file paths: `handlers.auth` -> `handlers/auth.py`
-/// Handles both relative (`from . import foo`) and absolute (`from module import thing`).
 fn resolve_python_import(
     import_path: &str,
     from_dir: &str,
@@ -457,23 +416,18 @@ fn resolve_python_import(
 ) -> Vec<String> {
     let mut results = Vec::new();
 
-    // Convert dot notation to path separator
     let as_path = import_path.replace('.', "/");
 
-    // Candidate paths to try
     let mut candidates: Vec<String> = Vec::new();
 
-    // Check relative to the file's directory
     if !from_dir.is_empty() {
         candidates.push(format!("{}/{}.py", from_dir, as_path));
         candidates.push(format!("{}/{}/__init__.py", from_dir, as_path));
     }
 
-    // Check as absolute from project root
     candidates.push(format!("{}.py", as_path));
     candidates.push(format!("{}/__init__.py", as_path));
 
-    // Also try with common top-level directories
     let top_dirs: HashSet<String> = files
         .keys()
         .filter_map(|p| {
@@ -503,9 +457,6 @@ fn resolve_python_import(
     results
 }
 
-/// Improvement 4: Resolve Rust `mod foo;` declarations.
-/// For `mod foo` in `src/main.rs`, look for `src/foo.rs` or `src/foo/mod.rs`.
-/// For `mod foo` in `src/bar/mod.rs`, look for `src/bar/foo.rs` or `src/bar/foo/mod.rs`.
 fn resolve_rust_import(
     mod_name: &str,
     from_path: &str,
@@ -520,7 +471,6 @@ fn resolve_rust_import(
         String::new()
     };
 
-    // Candidate paths
     let mut candidates: Vec<String> = Vec::new();
 
     if from_dir.is_empty() {
@@ -617,9 +567,6 @@ pub fn detect_dead_code(graph: &DepGraph) -> DeadCode {
         possibly_dead: Vec::new(),
     };
 
-    // Identify re-exporters: files whose name contains "index." or "lib." or "main."
-    // that both import from and export. For each re-exporter, add a virtual "reexport"
-    // marker to the imported_by set of the files it imports from.
     let mut reexport_targets: HashSet<String> = HashSet::new();
     for (path, node) in &graph.nodes {
         let fname = Path::new(path)
@@ -649,7 +596,6 @@ pub fn detect_dead_code(graph: &DepGraph) -> DeadCode {
             continue;
         }
 
-        // Skip framework-conventional files from orphan/dead detection
         let is_nextjs_page = matches!(fname.as_str(),
             "page.tsx" | "page.ts" | "page.jsx" | "page.js"
             | "layout.tsx" | "layout.ts" | "loading.tsx"
@@ -665,8 +611,6 @@ pub fn detect_dead_code(graph: &DepGraph) -> DeadCode {
 
         let skip_orphan_check = is_nextjs_page || is_go_file || is_config_file;
 
-        // Check importers: a file counts as "imported" if it has real importers
-        // OR is re-exported through an index/lib/main file
         let has_importers = !node.imported_by.is_empty() || reexport_targets.contains(path);
 
         if !has_importers && !node.exported_names.is_empty() && !is_entry_file(&fname) && !skip_orphan_check {
@@ -682,7 +626,6 @@ pub fn detect_dead_code(graph: &DepGraph) -> DeadCode {
         }
     }
 
-    // Detect possibly dead: files with exactly 1 importer and 0 imports of their own (leaf nodes)
     for (path, node) in &graph.nodes {
         let fname = Path::new(path)
             .file_name()

@@ -47,7 +47,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             .to_string_lossy()
             .replace('\\', "/");
 
-        // Check directories for migration dirs
         if path.is_dir() {
             let dir_name = path
                 .file_name()
@@ -59,7 +58,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
                     migration_dirs.push(format!("{} ({} files)", rel, file_count));
                 }
             }
-            // Check for db/migrations or prisma/migrations patterns
             if rel.ends_with("db/migrations") || rel.ends_with("prisma/migrations") {
                 let file_count = count_immediate_files(path);
                 if file_count > 0 && !migration_dirs.iter().any(|d| d.starts_with(&rel)) {
@@ -88,7 +86,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             .map(|e| e.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        // (a) Find Prisma schemas
         if file_name == "schema.prisma" {
             schema_files.push(rel.clone());
             if let Ok(content) = fs::read_to_string(path) {
@@ -113,7 +110,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             continue;
         }
 
-        // (e) Find SQL schema files
         if file_name == "schema.sql"
             || file_name.ends_with(".up.sql")
             || file_name.starts_with("create_") && file_name.ends_with(".sql")
@@ -122,7 +118,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             continue;
         }
 
-        // (b) Find Go structs with DB tags
         if ext == "go" {
             let parent_name = path
                 .parent()
@@ -163,7 +158,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             continue;
         }
 
-        // (c) Find TypeScript/JS model files
         if ext == "ts" || ext == "js" || ext == "tsx" || ext == "jsx" {
             let parent_name = path
                 .parent()
@@ -188,7 +182,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
                 }
             }
 
-            // (f) Detect ORM from TypeScript/JS files
             if orm.is_none() {
                 if let Ok(content) = fs::read_to_string(path) {
                     if content.contains("@Entity") {
@@ -207,7 +200,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
         }
     }
 
-    // (f) Check for drizzle directory at root
     if orm.is_none() {
         let drizzle_dir = root.join("drizzle");
         if drizzle_dir.is_dir() {
@@ -224,7 +216,6 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
 }
 
 fn extract_ts_model_name(line: &str) -> Option<String> {
-    // interface XXX
     if line.starts_with("interface ") || line.starts_with("export interface ") {
         let rest = if line.starts_with("export interface ") {
             &line["export interface ".len()..]
@@ -237,7 +228,6 @@ fn extract_ts_model_name(line: &str) -> Option<String> {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
     }
-    // type XXX =
     if line.starts_with("type ") || line.starts_with("export type ") {
         let rest = if line.starts_with("export type ") {
             &line["export type ".len()..]
@@ -250,7 +240,6 @@ fn extract_ts_model_name(line: &str) -> Option<String> {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
     }
-    // export class XXX
     if line.starts_with("export class ") || line.starts_with("class ") {
         let rest = if line.starts_with("export class ") {
             &line["export class ".len()..]

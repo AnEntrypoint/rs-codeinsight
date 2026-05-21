@@ -20,7 +20,6 @@ pub struct TsConfig {
 pub fn detect_tooling(root: &Path) -> ToolingContext {
     let mut ctx = ToolingContext::default();
 
-    // TypeScript
     let tsconfig = root.join("tsconfig.json");
     if tsconfig.exists() {
         if let Ok(content) = fs::read_to_string(&tsconfig) {
@@ -30,7 +29,6 @@ pub fn detect_tooling(root: &Path) -> ToolingContext {
         }
     }
 
-    // Linting
     let eslint_files = [
         ".eslintrc", ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json",
         ".eslintrc.yml", ".eslintrc.yaml", "eslint.config.js", "eslint.config.mjs",
@@ -49,7 +47,6 @@ pub fn detect_tooling(root: &Path) -> ToolingContext {
         }
     }
 
-    // Prettier
     let prettier_files = [
         ".prettierrc", ".prettierrc.js", ".prettierrc.json",
         ".prettierrc.yaml", ".prettierrc.yml", ".prettierrc.toml",
@@ -62,7 +59,6 @@ pub fn detect_tooling(root: &Path) -> ToolingContext {
         }
     }
 
-    // Testing framework
     if root.join("jest.config.js").exists()
         || root.join("jest.config.ts").exists()
         || root.join("jest.config.mjs").exists()
@@ -87,7 +83,6 @@ pub fn detect_tooling(root: &Path) -> ToolingContext {
         }
     }
 
-    // CI
     if root.join(".github/workflows").is_dir() {
         if let Ok(entries) = fs::read_dir(root.join(".github/workflows")) {
             let files: Vec<String> = entries
@@ -116,14 +111,12 @@ pub fn detect_tooling(root: &Path) -> ToolingContext {
         ctx.ci.push("CircleCI".into());
     }
 
-    // Docker
     ctx.has_dockerfile = root.join("Dockerfile").exists()
         || root.join("docker-compose.yml").exists()
         || root.join("docker-compose.yaml").exists()
         || root.join("compose.yml").exists()
         || root.join("compose.yaml").exists();
 
-    // Env files
     let env_patterns = [".env", ".env.example", ".env.local", ".env.development", ".env.production"];
     for f in &env_patterns {
         if root.join(f).exists() {
