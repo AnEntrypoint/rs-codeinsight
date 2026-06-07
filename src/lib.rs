@@ -147,6 +147,7 @@ pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, Strin
             if meta.len() > max_file_size { continue; }
         }
         let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        if file_name.starts_with("._") { continue; }
         if matches_ignore_pattern(&file_name, &ignore_files) { continue; }
         let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
         if let Some(lang_def) = get_language(&ext) {
