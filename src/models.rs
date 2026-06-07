@@ -30,6 +30,9 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             if name.starts_with(".plugkit-browser-profile") {
                 return false;
             }
+            if name.starts_with("._") {
+                return false;
+            }
             !matches!(
                 name.as_ref(),
                 "node_modules" | ".git" | "dist" | "build" | "target"
