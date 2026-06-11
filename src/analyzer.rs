@@ -525,7 +525,5 @@ fn structural_hash(node: Node, _source: &str) -> String {
 fn node_text<'a>(node: Node, source: &'a str) -> &'a str {
     let start = node.start_byte();
     let end = node.end_byte().min(source.len());
-    // Defensive: tree-sitter byte offsets are normally char boundaries, but never
-    // panic the slice if an offset lands mid-char on malformed/edited input.
     source.get(start..end).unwrap_or("")
 }
