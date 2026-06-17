@@ -1,6 +1,6 @@
 [package]
 name = "rs-codeinsight"
-version = "0.3.9"
+version = "0.3.10"
 edition = "2021"
 description = "Fast codebase analyzer using tree-sitter. Instant project understanding for AI coding tools."
 repository = "https://github.com/AnEntrypoint/rs-codeinsight"
