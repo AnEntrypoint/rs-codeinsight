@@ -45,6 +45,8 @@ pub fn get_language(ext: &str) -> Option<LangDef> {
         ".c" | ".h" => Some(LangDef { name: "C", language: tree_sitter_c::LANGUAGE.into() }),
         #[cfg(feature = "cpp")]
         ".cpp" | ".cc" | ".cxx" | ".hpp" => Some(LangDef { name: "C++", language: tree_sitter_cpp::LANGUAGE.into() }),
+        #[cfg(feature = "c")]
+        ".glsl" | ".vert" | ".frag" | ".comp" | ".geom" | ".tesc" | ".tese" | ".vsh" | ".fsh" | ".glslv" | ".glslf" => Some(LangDef { name: "GLSL", language: tree_sitter_c::LANGUAGE.into() }),
         #[cfg(feature = "java")]
         ".java" => Some(LangDef { name: "Java", language: tree_sitter_java::LANGUAGE.into() }),
         #[cfg(feature = "ruby")]
