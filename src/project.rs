@@ -371,7 +371,21 @@ fn extract_script(json: &str, name: &str) -> Option<String> {
     let scripts_pos = json.find("\"scripts\"")?;
     let scripts_block = &json[scripts_pos..];
     let brace = scripts_block.find('{')?;
-    let end_brace = scripts_block[brace..].find('}')?;
+    let end_brace = {
+        let mut depth = 0usize;
+        let mut end_idx = None;
+        for (i, c) in scripts_block[brace..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 { end_idx = Some(i); break; }
+                }
+                _ => {}
+            }
+        }
+        end_idx?
+    };
     let inner = &scripts_block[brace..brace + end_brace + 1];
     extract_string(inner, name)
 }
@@ -387,9 +401,20 @@ fn extract_object_keys(json: &str, key: &str) -> Vec<String> {
         Some(b) => b,
         None => return vec![],
     };
-    let end = match after[brace..].find('}') {
-        Some(e) => e,
-        None => return vec![],
+    let end = {
+        let mut depth = 0usize;
+        let mut end_idx = None;
+        for (i, c) in after[brace..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 { end_idx = Some(i); break; }
+                }
+                _ => {}
+            }
+        }
+        match end_idx { Some(e) => e, None => return vec![] }
     };
     let inner = &after[brace + 1..brace + end];
     inner
