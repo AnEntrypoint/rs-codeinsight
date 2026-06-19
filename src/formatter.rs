@@ -59,7 +59,7 @@ pub fn format_compact(
             String::new()
         };
         let ver_str = if !ver.is_empty() { format!(" v{ver}") } else { String::new() };
-        let desc_str = if !desc.is_empty() { format!(" — {desc}") } else { String::new() };
+        let desc_str = if !desc.is_empty() { format!(" - {desc}") } else { String::new() };
         let _ = writeln!(out, "## {name}{ver_str}{badges}{desc_str}");
         out.push('\n');
         if let Some(ref pm) = project.package_manager {
