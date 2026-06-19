@@ -329,9 +329,9 @@ fn merge_similar(result: &mut Vec<LanguageConventions>) {
     };
 
     if all_same {
-        if let Some(j) = js_idx {
+        if let (Some(j), Some(t), Some(x)) = (js_idx, ts_idx, tsx_idx) {
             let merged_convs = result[j].conventions.clone();
-            let mut indices = vec![js_idx.unwrap(), ts_idx.unwrap(), tsx_idx.unwrap()];
+            let mut indices = vec![j, t, x];
             indices.sort_unstable_by(|a, b| b.cmp(a));
             for idx in indices {
                 result.remove(idx);
