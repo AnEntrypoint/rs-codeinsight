@@ -60,7 +60,7 @@ pub fn format_compact(
         };
         let ver_str = if !ver.is_empty() { format!(" v{ver}") } else { String::new() };
         let desc_str = if !desc.is_empty() { format!(" — {desc}") } else { String::new() };
-        let _ = writeln!(out, "## 🎯 {name}{ver_str}{badges}{desc_str}");
+        let _ = writeln!(out, "## {name}{ver_str}{badges}{desc_str}");
         out.push('\n');
         if let Some(ref pm) = project.package_manager {
             let runtime = if pm == "bun" { "bun" } else { "node" };
@@ -68,7 +68,7 @@ pub fn format_compact(
         }
     } else if let Some(ref excerpt) = project.readme_excerpt {
         if !excerpt.is_empty() {
-            let _ = writeln!(out, "## 🎯 {excerpt}");
+            let _ = writeln!(out, "## {excerpt}");
             out.push('\n');
         }
     }
@@ -79,11 +79,11 @@ pub fn format_compact(
     if let Some(build) = project.scripts.get("build") { scripts_parts.push(format!("`{build}`")); }
     if let Some(test) = project.scripts.get("test") { scripts_parts.push(format!("`{test}`")); }
     if !scripts_parts.is_empty() {
-        let _ = writeln!(out, "## 🚀 Quick Start\n\n{}\n", scripts_parts.join(" | "));
+        let _ = writeln!(out, "## Quick Start\n\n{}\n", scripts_parts.join(" | "));
     }
 
     let _ = writeln!(out, "# {}f {}L {}fn {}cls cx{}", stats.files, fmt_k(stats.total_lines), total_fn, total_cls, avg_cx);
-    out.push_str("*Legend: f=files L=lines fn=functions cls=classes cx=avg-complexity | file:line:name(NL)=location Np=params | ↑N=imports-from ↓N=imported-by (N)=occurrences (+N)=more | 🔄circular 🏝️isolated 🔥complex 📋duplicated 📁large*\n\n");
+    out.push_str("*Legend: f=files L=lines fn=functions cls=classes cx=avg-complexity | file:line:name(NL)=location Np=params | ^N=imports-from vN=imported-by (N)=occurrences (+N)=more | circular isolated complex duplicated large*\n\n");
 
     let mut langs: Vec<_> = stats.by_language.iter().collect();
     langs.sort_by(|a, b| b.1.lines.cmp(&a.1.lines));
@@ -122,7 +122,7 @@ pub fn format_compact(
 
     let has_stack = !stack_parts.is_empty() || !sorted_patterns.is_empty() || !sorted_ids.is_empty();
     if has_stack {
-        out.push_str("## 🛠️ Tech Stack\n\n");
+        out.push_str("## Tech Stack\n\n");
         if !stack_parts.is_empty() {
             let _ = writeln!(out, "**Stack:** {}", stack_parts.join(", "));
         }
@@ -152,7 +152,7 @@ pub fn format_compact(
 
     let has_code_patterns = total_async > 0 || total_try > 0 || !sorted_calls.is_empty();
     if has_code_patterns {
-        out.push_str("## ⚡ Code Patterns\n\n");
+        out.push_str("## Code Patterns\n\n");
         let mut async_parts = Vec::new();
         if total_async > 0 { async_parts.push(format!("async({total_async})")); }
         if total_await > 0 { async_parts.push(format!("await({total_await})")); }
@@ -180,7 +180,7 @@ pub fn format_compact(
 
     let has_io = !all_env.is_empty() || total_sql > 0 || total_files > 0 || total_fetch > 0 || !all_routes.is_empty();
     if has_io {
-        out.push_str("## 🔗 I/O & Integration\n\n");
+        out.push_str("## I/O & Integration\n\n");
         if !all_env.is_empty() {
             let _ = writeln!(out, "**Env vars:** {}", all_env.join(", "));
         }
@@ -246,7 +246,7 @@ pub fn format_compact(
 
     let has_org = !large_files.is_empty() || !long_fns.is_empty() || !many_param_fns.is_empty() || !all_classes.is_empty();
     if has_org {
-        out.push_str("## 📊 Code Organization\n\n");
+        out.push_str("## Code Organization\n\n");
         if !large_files.is_empty() {
             let list: Vec<String> = large_files.iter().take(6).map(|(p, l)| {
                 let parts: Vec<&str> = p.split('/').collect();
@@ -275,7 +275,7 @@ pub fn format_compact(
     }
 
     if stats.files >= 3 && !dep_graph.coupling.is_empty() {
-        out.push_str("## 🔄 Architecture\n\n");
+        out.push_str("## Architecture\n\n");
         let mut connections: Vec<(&String, u32, u32)> = dep_graph.coupling.iter()
             .map(|(f, (in_n, out_n))| (f, *out_n, *in_n))
             .collect();
@@ -285,42 +285,42 @@ pub fn format_compact(
 
         let l0: Vec<_> = connections.iter().filter(|(_, o, i)| *o == 0 && *i > 0).collect();
         if !l0.is_empty() {
-            let s: Vec<String> = l0.iter().take(8).map(|(f, _, i)| format!("{}({}↓)", fname(f), i)).collect();
+            let s: Vec<String> = l0.iter().take(8).map(|(f, _, i)| format!("{}({}v)", fname(f), i)).collect();
             let more = if l0.len() > 8 { format!(" (+{})", l0.len() - 8) } else { String::new() };
             let _ = writeln!(out, "**L0 [pure exports]:** {}{more}", s.join(", "));
         }
         let l1: Vec<_> = connections.iter().filter(|(_, o, i)| *o >= 1 && *o <= 3 && *i >= 3).collect();
         if !l1.is_empty() {
-            let s: Vec<String> = l1.iter().take(8).map(|(f, o, i)| format!("{}({}↑{}↓)", fname(f), o, i)).collect();
+            let s: Vec<String> = l1.iter().take(8).map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
             let _ = writeln!(out, "**L1 [low imports]:** {}", s.join(", "));
         }
         let l2: Vec<_> = connections.iter().filter(|(_, o, i)| *o >= 4 && *i >= 2).collect();
         if !l2.is_empty() {
-            let s: Vec<String> = l2.iter().take(8).map(|(f, o, i)| format!("{}({}↑{}↓)", fname(f), o, i)).collect();
+            let s: Vec<String> = l2.iter().take(8).map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
             let _ = writeln!(out, "**L2 [mid flow]:** {}", s.join(", "));
         }
         let l3: Vec<_> = connections.iter().filter(|(_, o, i)| *i == 0 && *o > 0).collect();
         if !l3.is_empty() {
-            let s: Vec<String> = l3.iter().take(8).map(|(f, o, _)| format!("{}({}↑)", fname(f), o)).collect();
+            let s: Vec<String> = l3.iter().take(8).map(|(f, o, _)| format!("{}({}^)", fname(f), o)).collect();
             let more = if l3.len() > 8 { format!(" (+{})", l3.len() - 8) } else { String::new() };
             let _ = writeln!(out, "**L3 [pure imports]:** {}{more}", s.join(", "));
         }
         if !dep_graph.cross_module_deps.is_empty() {
             let cross: Vec<String> = dep_graph.cross_module_deps.iter().take(6)
-                .map(|(a, b)| format!("{a}→{b}")).collect();
+                .map(|(a, b)| format!("{a}->{b}")).collect();
             let _ = writeln!(out, "**Cross-module:** {}", cross.join(", "));
         }
         let hubs: Vec<_> = connections.iter().filter(|(_, o, i)| o + i >= 5).take(5).collect();
         if !hubs.is_empty() {
-            let s: Vec<String> = hubs.iter().map(|(f, o, i)| format!("{}({}↑{}↓)", fname(f), o, i)).collect();
+            let s: Vec<String> = hubs.iter().map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
             let _ = writeln!(out, "**Hubs:** {}", s.join(", "));
         }
         if !dep_graph.circular.is_empty() {
             let cycles: Vec<String> = dep_graph.circular.iter().take(2)
-                .map(|cycle| cycle.iter().take(3).map(|f| fname(f)).collect::<Vec<_>>().join("→"))
+                .map(|cycle| cycle.iter().take(3).map(|f| fname(f)).collect::<Vec<_>>().join("->"))
                 .collect();
             let more = if dep_graph.circular.len() > 2 { format!(" (+{} cycles)", dep_graph.circular.len() - 2) } else { String::new() };
-            let _ = writeln!(out, "**🔄 Circular:** {}{more}", cycles.join(" | "));
+            let _ = writeln!(out, "**Circular:** {}{more}", cycles.join(" | "));
         }
         let mut ext_deps: Vec<_> = dep_graph.external_imports.iter()
             .filter(|(k, _)| !NODE_BUILTINS.contains(&k.as_str()))
@@ -348,7 +348,7 @@ pub fn format_compact(
         .collect();
     let has_api = !exported_fns.is_empty() || !all_classes.is_empty() || !entry_pts.is_empty();
     if has_api {
-        out.push_str("## 🔌 API Surface\n\n");
+        out.push_str("## API Surface\n\n");
         if !exported_fns.is_empty() {
             let shown = exported_fns.len().min(12);
             let list = exported_fns[..shown].join(", ");
@@ -384,7 +384,7 @@ pub fn format_compact(
     if !complex_fns.is_empty() {
         let list: Vec<String> = complex_fns.iter().take(4).map(|(f, l, n, ln)| format!("{f}:{l}:{n}({ln}L)")).collect();
         let more = if complex_fns.len() > 4 { format!(" (+{})", complex_fns.len() - 4) } else { String::new() };
-        issues.push(format!("🔥 Complex funcs: {}{more}", list.join(", ")));
+        issues.push(format!("Complex funcs: {}{more}", list.join(", ")));
     }
     let lf: Vec<_> = {
         let mut seen: std::collections::HashSet<(String, u32)> = std::collections::HashSet::new();
@@ -400,13 +400,13 @@ pub fn format_compact(
             format!("{f}:{}L", a.stats.lines)
         }).collect();
         let more = if lf.len() > 3 { format!(" (+{})", lf.len() - 3) } else { String::new() };
-        issues.push(format!("📁 Large files: {}{more}", list.join(", ")));
+        issues.push(format!("Large files: {}{more}", list.join(", ")));
     }
     if !dep_graph.circular.is_empty() {
-        issues.push(format!("🔄 {} circular dep{}", dep_graph.circular.len(), if dep_graph.circular.len() > 1 { "s" } else { "" }));
+        issues.push(format!("{} circular dep{}", dep_graph.circular.len(), if dep_graph.circular.len() > 1 { "s" } else { "" }));
     }
     if !duplicates.is_empty() {
-        issues.push(format!("📋 {} duplicated groups", duplicates.len()));
+        issues.push(format!("{} duplicated groups", duplicates.len()));
     }
     if !scans.security.is_empty() {
         let mut by_kind: HashMap<&str, std::collections::BTreeSet<String>> = HashMap::new();
@@ -418,18 +418,18 @@ pub fn format_compact(
             let label = match *kind { "eval" => "eval()", "secret" => "hardcoded secrets", "sql_injection" => "SQL injection", _ => kind };
             let list: Vec<&String> = locs.iter().take(6).collect();
             let more = if locs.len() > 6 { format!(" (+{})", locs.len() - 6) } else { String::new() };
-            issues.push(format!("🔐 {label} in {}{more}", list.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
+            issues.push(format!("{label} in {}{more}", list.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
         }
     }
     if !issues.is_empty() {
-        out.push_str("## 🚨 Issues\n\n");
+        out.push_str("## Issues\n\n");
         for issue in &issues { let _ = writeln!(out, "- {issue}"); }
         out.push('\n');
     }
 
     let has_dead = !dead_code.orphaned_files.is_empty() || !dead_code.unused_exports.is_empty() || test_map.test_count > 0;
     if has_dead {
-        out.push_str("## 🧹 Dead Code & Tests\n\n");
+        out.push_str("## Dead Code & Tests\n\n");
         if !dead_code.orphaned_files.is_empty() {
             let list: Vec<&str> = dead_code.orphaned_files.iter().take(6)
                 .map(|f| f.rsplit('/').next().unwrap_or(f.as_str())).collect();
@@ -477,15 +477,15 @@ pub fn format_compact(
         mods.sort_by(|a, b| b.1.connections.cmp(&a.1.connections));
         let mods: Vec<_> = mods.into_iter().take(6).collect();
         if !mods.is_empty() {
-            out.push_str("## 📦 Modules\n\n");
+            out.push_str("## Modules\n\n");
             for (name, m) in &mods {
-                let _ = writeln!(out, "- {name}: {}f, {}cx, {}↑{}↓", m.files, m.connections, m.imports, m.exports);
+                let _ = writeln!(out, "- {name}: {}f, {}cx, {}^{}v", m.files, m.connections, m.imports, m.exports);
             }
             out.push('\n');
         }
     }
 
-    out.push_str("## 📄 File Index\n\n");
+    out.push_str("## File Index\n\n");
     let mut sorted_files: Vec<_> = file_metrics.iter().collect();
     sorted_files.sort_by_key(|(p, _)| p.as_str());
     let file_limit = if sorted_files.len() > 30 { 20 } else { sorted_files.len() };
