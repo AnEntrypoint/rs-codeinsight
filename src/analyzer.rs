@@ -29,6 +29,7 @@ pub struct FileAnalysis {
     pub exported_names: HashSet<String>,
     pub func_hashes: HashMap<String, String>,
     pub max_depth: u32,
+    pub truncated: bool,
     pub branches: u32,
     pub call_patterns: HashMap<String, u32>,
     pub async_count: u32,
@@ -92,9 +93,15 @@ pub fn analyze_tree(tree: &Tree, source: &str) -> FileAnalysis {
     analysis
 }
 
+const MAX_TRAVERSE_DEPTH: u32 = 2000;
+
 fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
     if depth > analysis.max_depth {
         analysis.max_depth = depth;
+    }
+    if depth >= MAX_TRAVERSE_DEPTH {
+        analysis.truncated = true;
+        return;
     }
 
     let kind = node.kind();
