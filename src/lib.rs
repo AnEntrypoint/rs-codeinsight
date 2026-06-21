@@ -214,7 +214,7 @@ pub fn compute_freshness_digest_from_files(_root: &Path, files: &[(String, Strin
         hasher.update(b"\n");
     }
     let result = hasher.finalize();
-    format!("v1:{}:files={}", hex_encode(&result), sorted.len())
+    format!("v1w:{}:files={}", hex_encode(&result), sorted.len())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
