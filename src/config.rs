@@ -77,10 +77,15 @@ fn parse_string_array(value: &str) -> Vec<String> {
         .split(',')
         .filter_map(|item| {
             let s = item.trim();
-            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+            if s.len() >= 2
+                && ((s.starts_with('"') && s.ends_with('"'))
+                    || (s.starts_with('\'') && s.ends_with('\'')))
+            {
                 Some(s[1..s.len() - 1].to_string())
-            } else {
+            } else if s.is_empty() {
                 None
+            } else {
+                Some(s.to_string())
             }
         })
         .collect()
