@@ -39,7 +39,6 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
 }
 
 pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
-    let _cfg = config::load_config(root);
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
 
     let results: Vec<(String, String, FileAnalysis, scanner::ScanResults)> = files
