@@ -353,80 +353,127 @@ fn parse_package_json(content: &str, ctx: &mut ProjectContext) {
     }
 }
 
-fn extract_string(json: &str, key: &str) -> Option<String> {
-    let pattern = format!("\"{}\"", key);
-    let pos = json.find(&pattern)?;
-    let after = &json[pos + pattern.len()..];
-    let colon = after.find(':')?;
-    let rest = after[colon + 1..].trim_start();
-    if rest.starts_with('"') {
-        let end = rest[1..].find('"')?;
-        Some(rest[1..1 + end].to_string())
+fn object_body(json: &str) -> Option<&str> {
+    let bytes = json.as_bytes();
+    let start = json.find('{')?;
+    let mut depth = 0usize;
+    let mut in_str = false;
+    let mut escaped = false;
+    let mut i = start;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if in_str {
+            if escaped { escaped = false; }
+            else if c == b'\\' { escaped = true; }
+            else if c == b'"' { in_str = false; }
+        } else {
+            match c {
+                b'"' => in_str = true,
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 { return Some(&json[start + 1..i]); }
+                }
+                _ => {}
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+fn top_level_fields(body: &str) -> Vec<(String, &str)> {
+    let bytes = body.as_bytes();
+    let mut fields = Vec::new();
+    let mut depth = 0usize;
+    let mut in_str = false;
+    let mut escaped = false;
+    let mut key_start: Option<usize> = None;
+    let mut last_key: Option<String> = None;
+    let mut value_start: Option<usize> = None;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if in_str {
+            if escaped { escaped = false; }
+            else if c == b'\\' { escaped = true; }
+            else if c == b'"' {
+                in_str = false;
+                if depth == 0 && last_key.is_none() && value_start.is_none() {
+                    if let Some(ks) = key_start.take() {
+                        last_key = Some(body[ks..i].to_string());
+                    }
+                }
+            }
+        } else {
+            match c {
+                b'"' => {
+                    in_str = true;
+                    if depth == 0 && last_key.is_none() && value_start.is_none() {
+                        key_start = Some(i + 1);
+                    }
+                }
+                b'{' | b'[' => depth += 1,
+                b'}' | b']' => { if depth > 0 { depth -= 1; } }
+                b':' if depth == 0 && last_key.is_some() && value_start.is_none() => {
+                    value_start = Some(i + 1);
+                }
+                b',' if depth == 0 => {
+                    if let (Some(k), Some(vs)) = (last_key.take(), value_start.take()) {
+                        fields.push((k, body[vs..i].trim()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        i += 1;
+    }
+    if let (Some(k), Some(vs)) = (last_key.take(), value_start.take()) {
+        fields.push((k, body[vs..].trim()));
+    }
+    fields
+}
+
+fn unquote(value: &str) -> Option<String> {
+    let v = value.trim();
+    if v.starts_with('"') {
+        let inner = &v[1..];
+        let end = inner.find('"')?;
+        Some(inner[..end].to_string())
     } else {
         None
     }
 }
 
+fn extract_string(json: &str, key: &str) -> Option<String> {
+    let body = object_body(json)?;
+    for (k, v) in top_level_fields(body) {
+        if k == key { return unquote(v); }
+    }
+    None
+}
+
 fn extract_script(json: &str, name: &str) -> Option<String> {
-    let scripts_pos = json.find("\"scripts\"")?;
-    let scripts_block = &json[scripts_pos..];
-    let brace = scripts_block.find('{')?;
-    let end_brace = {
-        let mut depth = 0usize;
-        let mut end_idx = None;
-        for (i, c) in scripts_block[brace..].char_indices() {
-            match c {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 { end_idx = Some(i); break; }
-                }
-                _ => {}
+    let body = object_body(json)?;
+    for (k, v) in top_level_fields(body) {
+        if k == "scripts" {
+            let inner = object_body(v)?;
+            for (sk, sv) in top_level_fields(inner) {
+                if sk == name { return unquote(sv); }
             }
+            return None;
         }
-        end_idx?
-    };
-    let inner = &scripts_block[brace..brace + end_brace + 1];
-    extract_string(inner, name)
+    }
+    None
 }
 
 fn extract_object_keys(json: &str, key: &str) -> Vec<String> {
-    let pattern = format!("\"{}\"", key);
-    let pos = match json.find(&pattern) {
-        Some(p) => p,
-        None => return vec![],
-    };
-    let after = &json[pos + pattern.len()..];
-    let brace = match after.find('{') {
-        Some(b) => b,
-        None => return vec![],
-    };
-    let end = {
-        let mut depth = 0usize;
-        let mut end_idx = None;
-        for (i, c) in after[brace..].char_indices() {
-            match c {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 { end_idx = Some(i); break; }
-                }
-                _ => {}
-            }
+    let body = match object_body(json) { Some(b) => b, None => return vec![] };
+    for (k, v) in top_level_fields(body) {
+        if k == key {
+            let inner = match object_body(v) { Some(b) => b, None => return vec![] };
+            return top_level_fields(inner).into_iter().map(|(kk, _)| kk).collect();
         }
-        match end_idx { Some(e) => e, None => return vec![] }
-    };
-    let inner = &after[brace + 1..brace + end];
-    inner
-        .split(',')
-        .filter_map(|item| {
-            let trimmed = item.trim();
-            if trimmed.starts_with('"') {
-                let end = trimmed[1..].find('"')?;
-                Some(trimmed[1..1 + end].to_string())
-            } else {
-                None
-            }
-        })
-        .collect()
+    }
+    vec![]
 }
