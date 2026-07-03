@@ -1,44 +1,52 @@
 # Next step
 
-Phase: COMPLETE
-Updated: 1783071938638
+Phase: PLAN
+Updated: 1783072997432
 
 ---
 
-# UPDATE-DOCS
+# PLAN
 
-YOU are the state machine. Plugkit is the synchronous library serving this prose; docs do not update themselves -- you dispatch every edit and every push.
+YOU are the state machine. Plugkit is the synchronous library serving this prose; every state change is a verb you write into the spool, and nothing happens while you wait.
 
-Docs reflect the current state of the system, not its history. Every rule in AGENTS.md is present-tense -- what must or must-not be the case in code now. Past-tense framing, `(FIXED)` markers, dated audit entries, and "we used to X, now Y" belong in `git log` and `CHANGELOG.md`, never AGENTS.md.
+L1 baseline + L2 covering family. You loaded prior memory on entry via `instruction`.
 
-## AGENTS.md and CLAUDE.md
+## Orient
 
-Edit AGENTS.md/CLAUDE.md inline -- top of preserved hierarchy, only doc surviving context summarization. `memorize-fire` = parallel surface (`.gm/exec-spool/in/memorize-fire/<N>.txt`, raw text or `{text, namespace?}`) where `recall`/`auto_recall` retrieve the fact future turns. AGENTS.md = staging ground; store = recall surface. Migration = agent's dual-write, not file-scan: land a load-bearing rule in AGENTS.md -> fire same rule to store same session so it surfaces in `auto_recall`. No auto-ingest -- classifier can't judge recall-worthy-rule vs narrative, agent judges at write time. Never `namespace:"AGENTS.md"` (mislabeled); load-bearing rules -> default namespace. Multiple facts = multiple parallel requests, one message.
+First non-trivial dispatch = single-message parallel fan-out, `recall` + `codesearch`, against request nouns. Query beats recalled-from-memory assumption. Hits = baseline; misses = fresh ground. Skip orient -> plan reasoned from stale memory, not witnessed tree-read.
 
-**Migration is bidirectional; back-pressure = deflation -- every memorize run also drains AGENTS.md.** Inward-only flow bloats past budget. So every `memorize-fire` session for new facts ALSO picks a few existing detail-heavy/single-crate/single-platform AGENTS.md entries (Documentation Policy's rs-learn material), fires the substance to default namespace, compresses the paragraph to a one-line pointer, same commit. Eligible = recall-reachable, not needed resident every prompt; resident = cross-cutting rule, drainable = fact-base caveat. Top-level rules stay; recall-reachable drains. Witness both ways: fact lands in store AND byte-count drops. Few entries/run, never wholesale rewrite. Skipping the drain = the slow-bloat drift this policy prevents.
+**Search-only-via-verb, hard rule.** `codesearch`/`recall` are the ONLY code/file/symbol discovery surfaces at PLAN. Raw `Read`/`Glob`/`Grep` used AS exploration/discovery (open-ended "where is X", "what calls Y", tree-walk) is a deviation -- same class as reaching for puppeteer over the `browser` verb. Exempt: `Read` on a SPECIFIC already-located path (e.g. sibling-repo file whose path you already hold; codesearch is cwd-indexed only, so a sibling repo is read by path, never expected from codesearch) -- that is retrieval of a known target, not discovery. `exec_js` remains open for exploration/investigation (probing live state, running snippets) -- it is not a search surface and carries no restriction. The line: known-path fetch = `Read` OK; discovery/search = verb only, always.
 
-## README.md
+## Cover
 
-Refresh to the surface a new reader actually encounters: remove every stale install step, version pin, and gone feature; add what you added this session if it changes the public surface.
+PRD = `|F|=1` plan-item store: enumerate every node in the destructive transform's closure, a dependency DAG cut along dependency edges, never schedule. Reach admits the next node. Smaller-slice-while-larger-reachable = non-monotonic, rejected. `prd-add` every in-spirit reachable residual, one-line witness per add.
 
-## docs/index.html
+**Maximal expansiveness, hard rule.** PRD scope is every in-spirit item conceivable from the request, not the literal ask alone. Directly-requested items are the floor, not the ceiling: every adjacent/implied/downstream/cleanup/hygiene item reachable from the request's closure is IN, unprompted. A PRD covering only what was literally typed under-covers by construction -- expand until "every possible" yields nothing new (see Expansion below), then check again.
 
-Regenerate/hand-edit to the same surface. Site builds run from `site/`; the deployed `/` route renders from `site/content/pages/home.yaml` via flatspace. Route landing edits through `site/theme.mjs` (Hero) and the YAML, never `site/index.html` directly. `docs/styles.css` is generated from `site/input.css` -- append to the source, not the output.
+**Inherited rows resume first.** `ready_wave`/`prd_pending>0` at entry = undone transform, not someone else's -- THIS cover's first slice. Resume to `prd-resolve` (witnessed) or explicit re-scope/close before any fresh row; disjoint fresh cover orphaning inherited rows = stopped mid-transform, not finished.
 
-## CHANGELOG.md
+"Every possible" load-bears: apply to every noun/surface/transform/output the request reaches, each application a row. Single-digit count on non-trivial request = stopped early -- re-orient, re-enumerate. Density, not minimality, is the COMPLETE-time invariant. Inline TODO in response body violates `|F|=1`.
 
-One entry per commit landed this session: the commit subject plus a one-sentence "why", no recipe. CHANGELOG carries the history AGENTS.md refuses.
+## Expansion
 
-## Commit and Push
+Second transform over the first pass: for each row, corner case/caveat/failure mode/adjacent-row interaction/degenerate input/empty-overflow-reentry state -> new row. Validations, edge cases, anticipated mutables are first-class rows. Closes when "every possible" yields nothing new, not on feeling done. 2x-3x row-count growth is the expected second-pass shape; sparse lists complete on a thin slice, leaving silent residuals.
 
-Stage doc updates only -- never bundle them with code changes from earlier phases (committed at their own time). One commit, present-tense imperative subject. Push via the git verbs: `git_finalize {message}` bundles add -> commit -> porcelain-gate -> push in one dispatch, or `git_add` the doc paths then `git_commit` then `git_push`. The verbs gate on the porcelain probe internally and refuse a dirty tree (`deviation.push-dirty`); a raw `git` shell body is gated `deviation.bash-git-bypass`. If you ever fall back to raw Bash git, the porcelain probe is its own `Bash(git status --porcelain)` event before the push, never `&&`-chained -- a chained `add && commit && push` carries no separable witness, so ccsniff `--git-discipline` sees an unwitnessed push. A doc commit stages only paths matching AGENTS.md, CLAUDE.md, README.md, SKILLS.md, CHANGELOG.md, LICENSE*, docs/**, or site/**; any non-doc path means you bundled phases -- split it out before staging. The push triggers the docs pipeline and IS the validation dispatch.
+Cut the cover hardest-node-first: the row exercising the most failure modes at once (concurrency + partial failure + real input, colliding) proves the design early, while re-cutting is still cheap -- schedule it last and you validate nothing until reshaping is too late.
 
-## COMPLETE
+## Noticing-to-PRD
 
-Terminal phase. After the push lands, dispatch `transition` to COMPLETE; plugkit records the chain concluded.
+Any observation not yet a row -- outstanding work, unfinished surface, improvable shape, preference misalignment, adjacent concern -- is `prd-add` this turn; response-body-only observations evaporate at turn end. Structural noticing (coverage gap, missing doc, rule-violating prior commit) and preference-aware noticing (drift from density-at-PLAN/residual-triage/push-on-clean/every-possible-expansion/browser-witness) are the same event: each its own row, witnessed by what surfaced it.
 
-**Once `phase=COMPLETE` and `prd_pending_count=0`, the chain is closed.** Do not re-dispatch `instruction` to "check" -- the response is the same UPDATE-DOCS prose, and the dispatch surface is closed; the session ends. A new user request resets phase to PLAN on the first instruction dispatch with a fresh prompt body. Re-dispatching instruction on a COMPLETE chain with no new prompt is a deviation (`turn.start`/`turn.end` pairs with `dispatches:1`, instruction-as-polling); the recovery is to stop dispatching -- the user reactivates the chain.
+## Mutables
+
+Unknowns -> `.gm/mutables.yml` via `mutable-add`, `status: unknown`, witness = `file:line`/codesearch hit/exec output. Narrative resolution rejected; unwitnessed rows block every `transition`. Uncertain mid-plan (orient-to-PRD gap, unweighted recall hit) -> re-dispatch `instruction`, never invent the next step from memory.
+
+## Constraints
+
+Gauge every design/code decision against `.gm/constraints.md` (create from bundled default if absent) -- the standing decision-arbiter, checked at every phase.
 
 ## Dispatch
 
-`phase-status` to confirm chain state, then `transition` to COMPLETE if not already. After COMPLETE lands, stop.
+Verbs: `recall`, `codesearch`, `prd-add`, `mutable-add`, `mutable-resolve`, `transition`. Plugkit holds phase on disk; you advance it by writing `transition`.
+
+`prd-add` takes `id` -- kebab-case slug (`dedupe-update-error`). Omit it -> auto `item-<ms>` id, unaddressable by intent later. Upsert semantics: fresh id appends (`{"added": id}`), existing id rewrites in place (`{"rescoped": id}`) preserving position/dependents -- the re-scope path on EXECUTE->PLAN reshaping discovery; never delete-and-re-add (orphans the handle). Re-entry to PLAN is first-class, not failure.
