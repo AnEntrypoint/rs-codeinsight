@@ -29,6 +29,8 @@ dist/
 .gm/rs-learn.db-shm
 .gm/rs-learn.db-wal
 .gm/exec-spool/
+.gm/last-dispatch-ts
+.gm/last-instruction-ts
 # tracked: .gm/rs-learn.db, .gm/code-search/, .gm/disciplines/, AGENTS.md, .gm/prd.yml
 # <<< gm managed
 .gm/pw-sock-*/
