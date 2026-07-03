@@ -41,8 +41,8 @@
   witness: 'cargo check --message-format=short: Finished dev profile in 0.08s, zero errors. cargo build --release (after cargo clean --release to clear stale rustc-version-mismatched artifacts): Finished release profile [optimized] in 57.22s, zero errors.'
   status: completed
 - id: push-all-fixes
-  witness: 'CONSOLIDATE: git_finalize all 8 findings'' fixes to origin main per gm skill push discipline'
-  status: pending
+  witness: git_finalize committed and pushed to origin/main, sha=8e23af2, branch=main, pushed=true
+  status: completed
 - id: fix-duplicate-freshness-digest-fn
   witness: 'src/lib.rs: gated the wasm-variant compute_freshness_digest_from_files with #[cfg(target_arch="wasm32")] (was previously ungated, colliding with the native #[cfg(not(target_arch="wasm32"))] variant), and ungated hex_encode/file_stamp so both variants can call them; cargo check confirms E0428/E0425 errors resolved, clean compile'
   status: completed
