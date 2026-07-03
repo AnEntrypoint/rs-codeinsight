@@ -30,32 +30,61 @@ pub struct AnalyzeOptions {
 
 pub struct AnalysisOutput {
     pub text: String,
+    pub skipped_files: Vec<(String, String)>,
 }
 
 pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let cfg = config::load_config(root);
     let files = collect_files(root, &cfg);
-    analyze_with_files(root, options, files)
+    analyze_with_files_and_config(root, options, files, &cfg)
 }
 
 pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
+    let cfg = config::Config::default();
+    analyze_with_files_and_config(root, options, files, &cfg)
+}
+
+pub fn analyze_with_files_and_config(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, config: &config::Config) -> AnalysisOutput {
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
 
-    let results: Vec<(String, String, FileAnalysis, scanner::ScanResults)> = files
+    let outcomes: Vec<Result<(String, String, FileAnalysis, scanner::ScanResults), (String, String)>> = files
         .into_par_iter()
-        .filter_map(|(rel_path, abs_path, lang_name)| {
-            let source = fs::read_to_string(&abs_path).ok()?;
+        .map(|(rel_path, abs_path, lang_name)| {
+            let source = match fs::read_to_string(&abs_path) {
+                Ok(s) => s,
+                Err(_) => return Err((rel_path, "invalid UTF-8 or unreadable".to_string())),
+            };
             let ext = Path::new(&abs_path)
                 .extension()
                 .map(|e| format!(".{}", e.to_string_lossy()))
                 .unwrap_or_default();
-            let lang_def = get_language(&ext)?;
+            let lang_def = match get_language(&ext) {
+                Some(l) => l,
+                None => return Err((rel_path, "unsupported language".to_string())),
+            };
             let mut parser = Parser::new();
-            parser.set_language(&lang_def.language).ok()?;
-            let tree = parser.parse(&source, None)?;
+            if parser.set_language(&lang_def.language).is_err() {
+                return Err((rel_path, "parser init failed".to_string()));
+            }
+            let tree = match parser.parse(&source, None) {
+                Some(t) => t,
+                None => return Err((rel_path, "parse failed".to_string())),
+            };
             let analysis = analyze_tree(&tree, &source);
             let scan = scanner::scan_source(&rel_path, &source);
-            Some((rel_path, lang_name, analysis, scan))
+            Ok((rel_path, lang_name, analysis, scan))
+        })
+        .collect();
+
+    let mut skipped_files: Vec<(String, String)> = Vec::new();
+    let results: Vec<(String, String, FileAnalysis, scanner::ScanResults)> = outcomes
+        .into_iter()
+        .filter_map(|outcome| match outcome {
+            Ok(v) => Some(v),
+            Err(skip) => {
+                skipped_files.push(skip);
+                None
+            }
         })
         .collect();
 
@@ -98,17 +127,27 @@ pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(Stri
     let git_ctx = git::analyze_git(root);
     let tooling_ctx = tooling::detect_tooling(root);
     let test_map = scanner::map_tests(&all_rel_paths);
-    let data_layer = models::detect_data_layer(root);
+    let data_layer = models::detect_data_layer(root, config);
     let key_locations = locations::detect_key_locations_from_paths(&all_rel_paths);
     let conv = conventions::detect_conventions(&file_metrics, &file_languages);
 
-    let text = if options.json_mode {
+    let mut text = if options.json_mode {
         json_output::format_json(&stats, &file_metrics, &dep_graph, &dead_code, &duplicates, &project_ctx, &git_ctx, &tooling_ctx, &all_scans, &test_map, &data_layer, &key_locations, &conv)
     } else {
         formatter::format_compact(&stats, &file_metrics, &dep_graph, &dead_code, &duplicates, &project_ctx, &git_ctx, &tooling_ctx, &all_scans, &test_map, &data_layer, &key_locations, &conv)
     };
 
-    AnalysisOutput { text }
+    if !skipped_files.is_empty() && !options.json_mode {
+        text.push_str(&format!("\n**Skipped:** {} file(s) could not be analyzed:\n", skipped_files.len()));
+        for (path, reason) in skipped_files.iter().take(20) {
+            text.push_str(&format!("- {} ({})\n", path, reason));
+        }
+        if skipped_files.len() > 20 {
+            text.push_str(&format!("- and {} more\n", skipped_files.len() - 20));
+        }
+    }
+
+    AnalysisOutput { text, skipped_files }
 }
 
 pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, String, String)> {
@@ -175,7 +214,6 @@ pub fn compute_freshness_digest(root: &Path) -> String {
     compute_freshness_digest_from_files(root, &files)
 }
 
-#[cfg(target_arch = "wasm32")]
 fn hex_encode(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut hex = String::with_capacity(bytes.len() * 2);
@@ -197,6 +235,7 @@ fn file_stamp(abs: &str) -> (u128, u64) {
     (mtime_nanos, size)
 }
 
+#[cfg(target_arch = "wasm32")]
 pub fn compute_freshness_digest_from_files(_root: &Path, files: &[(String, String, String)]) -> String {
     use md5::{Digest, Md5};
     let mut sorted: Vec<(String, u128, u64)> = files.iter().map(|(rel, abs, _)| {

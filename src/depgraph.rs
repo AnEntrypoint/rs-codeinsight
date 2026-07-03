@@ -45,6 +45,31 @@ pub fn build_dep_graph(
         );
     }
 
+    let top_dirs: HashSet<String> = file_analysis
+        .keys()
+        .filter_map(|p| {
+            let normalized = p.replace('\\', "/");
+            if normalized.contains('/') {
+                Some(normalized.split('/').next()?.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let go_files: Vec<(String, String)> = file_analysis
+        .keys()
+        .filter_map(|p| {
+            let normalized = p.replace('\\', "/");
+            if normalized.ends_with(".go") {
+                let parent = normalized.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
+                Some((parent, p.clone()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let all_files: Vec<String> = nodes.keys().cloned().collect();
     for from_path in &all_files {
         let import_paths: Vec<String> = nodes[from_path].import_paths.iter().cloned().collect();
@@ -72,7 +97,7 @@ pub fn build_dep_graph(
             }
 
             if is_go {
-                let resolved_list = resolve_go_import(imp, file_analysis, go_modules);
+                let resolved_list = resolve_go_import(imp, &go_files, go_modules);
                 if !resolved_list.is_empty() {
                     for resolved in resolved_list {
                         if let Some(node) = nodes.get_mut(&resolved) {
@@ -87,7 +112,7 @@ pub fn build_dep_graph(
             }
 
             if is_py {
-                let resolved_list = resolve_python_import(imp, &from_dir, file_analysis);
+                let resolved_list = resolve_python_import(imp, &from_dir, file_analysis, &top_dirs);
                 if !resolved_list.is_empty() {
                     for resolved in resolved_list {
                         if let Some(node) = nodes.get_mut(&resolved) {
@@ -101,7 +126,7 @@ pub fn build_dep_graph(
                 }
             }
 
-            if let Some(resolved) = resolve_alias_import(imp, path_aliases, file_analysis) {
+            if let Some(resolved) = resolve_alias_import(imp, path_aliases, file_analysis, &top_dirs) {
                 if let Some(node) = nodes.get_mut(&resolved) {
                     node.imported_by.insert(from_path.clone());
                 }
@@ -306,6 +331,7 @@ fn resolve_alias_import(
     import_path: &str,
     path_aliases: &HashMap<String, String>,
     files: &HashMap<String, (HashSet<String>, HashSet<String>)>,
+    top_dirs: &HashSet<String>,
 ) -> Option<String> {
     for (alias_prefix, replacement) in path_aliases {
         if import_path.starts_with(alias_prefix.as_str()) {
@@ -340,19 +366,7 @@ fn resolve_alias_import(
                 }
             }
 
-            let top_dirs: HashSet<String> = files
-                .keys()
-                .filter_map(|p| {
-                    let normalized = p.replace('\\', "/");
-                    if normalized.contains('/') {
-                        Some(normalized.split('/').next()?.to_string())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            for top in &top_dirs {
+            for top in top_dirs {
                 let prefixed = format!("{}/{}", top, resolved_base);
 
                 if files.contains_key(&prefixed) {
@@ -381,7 +395,7 @@ fn resolve_alias_import(
 
 fn resolve_go_import(
     import_path: &str,
-    files: &HashMap<String, (HashSet<String>, HashSet<String>)>,
+    go_files: &[(String, String)],
     go_modules: &[String],
 ) -> Vec<String> {
     let mut results = Vec::new();
@@ -392,15 +406,9 @@ fn resolve_go_import(
                 .trim_start_matches('/')
                 .replace('\\', "/");
 
-            for file_path in files.keys() {
-                let normalized = file_path.replace('\\', "/");
-                if normalized.ends_with(".go") {
-
-                    if let Some(parent) = normalized.rsplit_once('/') {
-                        if parent.0 == rest || parent.0.ends_with(&format!("/{}", rest)) {
-                            results.push(file_path.clone());
-                        }
-                    }
+            for (parent, file_path) in go_files {
+                if parent == &rest || parent.ends_with(&format!("/{}", rest)) {
+                    results.push(file_path.clone());
                 }
             }
         }
@@ -413,6 +421,7 @@ fn resolve_python_import(
     import_path: &str,
     from_dir: &str,
     files: &HashMap<String, (HashSet<String>, HashSet<String>)>,
+    top_dirs: &HashSet<String>,
 ) -> Vec<String> {
     let mut results = Vec::new();
 
@@ -428,19 +437,7 @@ fn resolve_python_import(
     candidates.push(format!("{}.py", as_path));
     candidates.push(format!("{}/__init__.py", as_path));
 
-    let top_dirs: HashSet<String> = files
-        .keys()
-        .filter_map(|p| {
-            let normalized = p.replace('\\', "/");
-            if normalized.contains('/') {
-                Some(normalized.split('/').next()?.to_string())
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    for top in &top_dirs {
+    for top in top_dirs {
         candidates.push(format!("{}/{}.py", top, as_path));
         candidates.push(format!("{}/{}/__init__.py", top, as_path));
     }
@@ -490,6 +487,8 @@ fn resolve_rust_import(
     results
 }
 
+const MAX_DFS_DEPTH: u32 = 2000;
+
 fn detect_circular(nodes: &HashMap<String, DepNode>) -> Vec<Vec<String>> {
     let mut cycles = Vec::new();
     let mut visiting = HashSet::new();
@@ -497,7 +496,7 @@ fn detect_circular(nodes: &HashMap<String, DepNode>) -> Vec<Vec<String>> {
 
     for node_key in nodes.keys() {
         if !visited.contains(node_key) {
-            dfs(node_key, nodes, &mut vec![], &mut visiting, &mut visited, &mut cycles);
+            dfs(node_key, nodes, &mut vec![], &mut visiting, &mut visited, &mut cycles, 0);
         }
     }
 
@@ -512,7 +511,11 @@ fn dfs(
     visiting: &mut HashSet<String>,
     visited: &mut HashSet<String>,
     cycles: &mut Vec<Vec<String>>,
+    depth: u32,
 ) {
+    if depth >= MAX_DFS_DEPTH {
+        return;
+    }
     if visiting.contains(node) {
         if let Some(start) = path.iter().position(|p| p == node) {
             let mut cycle: Vec<String> = path[start..].to_vec();
@@ -530,7 +533,7 @@ fn dfs(
 
     if let Some(n) = nodes.get(node) {
         for dep in &n.imports_from {
-            dfs(dep, nodes, path, visiting, visited, cycles);
+            dfs(dep, nodes, path, visiting, visited, cycles, depth + 1);
         }
     }
 

@@ -1,0 +1,48 @@
+- id: guard-count-params-walk
+  witness: 'src/analyzer.rs count_params::walk now takes depth param, returns early at MAX_TRAVERSE_DEPTH (2000); witnessed via examples/witness_recursion_guard.rs run: 1500-param function analyzed without stack overflow, output length 490'
+  status: completed
+- id: guard-structural-hash-walk
+  witness: src/analyzer.rs structural_hash::walk now takes depth param, returns early at MAX_TRAVERSE_DEPTH; same pathological-input exec witness as count_params (shared fixture run)
+  status: completed
+- id: guard-extract-import-path
+  witness: src/analyzer.rs extract_import_path now delegates to extract_import_path_depth(node,source,0) which returns None at MAX_TRAVERSE_DEPTH; cargo check clean, same pathological-input witness run confirms no overflow
+  status: completed
+- id: guard-depgraph-dfs
+  witness: src/depgraph.rs dfs() now takes depth param, const MAX_DFS_DEPTH=2000, returns early past depth; cargo check clean confirms compilation, detect_circular call site updated to pass depth=0
+  status: completed
+- id: widen-func-hashes-key
+  witness: 'src/analyzer.rs traverse(): sig now format!("{}({}):{}",name,params,start_line) - includes byte-position-derived start_line disambiguator; verified downstream lib.rs:79-81 groups duplicates by hash value not sig key, and formatter.rs/json_output.rs only report duplicates.len() not per-sig text, so widening is purely additive and safe for cross-file dedup'
+  status: completed
+- id: fix-detect-data-layer-config
+  witness: src/models.rs detect_data_layer now takes &config::Config param, uses config.max_file_size/ignore_dirs/ignore_files instead of hardcoded MAX_FILE_SIZE const and static ignore list; lib.rs:130 call site updated to pass config; cargo check clean
+  status: completed
+- id: hoist-import-resolver-scans
+  witness: src/depgraph.rs build_dep_graph now computes top_dirs and go_files ONCE before the per-file/per-import loop, passes both as params to resolve_alias_import/resolve_python_import/resolve_go_import which no longer recompute internally; cargo check clean confirms signature updates compile
+  status: completed
+- id: surface-utf8-skip-warnings
+  witness: src/lib.rs analyze_with_files_and_config now maps to Result<...,(rel_path,reason)> distinguishing utf8/parse failures, collects skipped_files:Vec<(String,String)> surfaced on AnalysisOutput struct and appended to compact text output; witnessed via examples/witness_recursion_guard.rs run printing skipped_files count field
+  status: completed
+- id: fix-parse-string-array-quotes
+  witness: 'src/config.rs parse_string_array now calls split_top_level_commas which tracks quote_char state and only splits on commas outside quotes; witnessed via real exec (examples/witness_misc.rs): .codeinsight.toml with dirs=["node_modules","path/with,comma","vendor"] parsed to exactly 3 correct entries including the literal comma preserved'
+  status: completed
+- id: fix-git-porcelain-rename-parsing
+  witness: src/git.rs analyze_git now calls parse_porcelain_line which parses 2-char status code, checks for R/C (rename/copy), and if present splits on ' -> ' taking the path after the arrow; non-rename lines still get the rest-of-line trimmed correctly; witnessed via real exec (examples/witness_misc.rs) running analyze_git against this repo's own live dirty worktree, printed uncommitted list with correct paths, no panic
+  status: completed
+- id: fix-formatter-file-index-cliff
+  witness: src/formatter.rs:491 file_limit now computed as sorted_files.len().min(FILE_INDEX_LIMIT) with FILE_INDEX_LIMIT=30 const, replacing the old if-len>30-then-20 cliff; degrades smoothly (30 files shows 30, 31 shows 30 + and-1-more, no drop to 20); cargo check clean
+  status: completed
+- id: investigate-duplicate-analyze-git
+  witness: 'src/git.rs:16-20 - resolved as FALSE POSITIVE, not a bug: the two analyze_git definitions are mutually exclusive via #[cfg(target_arch="wasm32")] vs #[cfg(not(target_arch="wasm32"))] - standard cross-compilation pattern (wasm has no git process spawning capability), not dead/shadowing code. No fix needed.'
+  status: completed
+- id: witness-recursion-fix-pathological-input
+  witness: Constructed real fixture at temp dir with function containing 1500 parameters (pathological.js), ran via disposable examples/witness_recursion_guard.rs calling rs_codeinsight::analyze_with_files_and_config directly - analyzer completed successfully with output length 490 and 0 skipped files, no stack overflow. A separate 5000-deep-nesting variant did overflow, but in tree-sitter's own recursive-descent parser (before our code runs), confirmed out of scope for this fix since our guards only protect post-parse AST traversal, not the parser itself.
+  status: completed
+- id: cargo-check-build-all-fixes
+  witness: 'cargo check --message-format=short: Finished dev profile in 0.08s, zero errors. cargo build --release (after cargo clean --release to clear stale rustc-version-mismatched artifacts): Finished release profile [optimized] in 57.22s, zero errors.'
+  status: completed
+- id: push-all-fixes
+  witness: 'CONSOLIDATE: git_finalize all 8 findings'' fixes to origin main per gm skill push discipline'
+  status: pending
+- id: fix-duplicate-freshness-digest-fn
+  witness: 'src/lib.rs: gated the wasm-variant compute_freshness_digest_from_files with #[cfg(target_arch="wasm32")] (was previously ungated, colliding with the native #[cfg(not(target_arch="wasm32"))] variant), and ungated hex_encode/file_stamp so both variants can call them; cargo check confirms E0428/E0425 errors resolved, clean compile'
+  status: completed

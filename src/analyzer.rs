@@ -117,7 +117,7 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         let lines = text.lines().count() as u32;
         let params = count_params(node, source);
         let hash = structural_hash(node, source);
-        let sig = format!("{}({})", name, params);
+        let sig = format!("{}({}):{}", name, params, start_line);
         analysis.func_hashes.insert(sig, hash);
         analysis.func_names.push(FuncInfo { name, start_line, lines, params });
     }
@@ -469,6 +469,13 @@ fn extract_name(node: Node, source: &str) -> Option<String> {
 }
 
 fn extract_import_path(node: Node, source: &str) -> Option<String> {
+    extract_import_path_depth(node, source, 0)
+}
+
+fn extract_import_path_depth(node: Node, source: &str, depth: u32) -> Option<String> {
+    if depth >= MAX_TRAVERSE_DEPTH {
+        return None;
+    }
     let count = node.child_count();
     for i in 0..count {
         if let Some(child) = node.child(i) {
@@ -481,7 +488,7 @@ fn extract_import_path(node: Node, source: &str) -> Option<String> {
                     .to_string();
                 return Some(path);
             }
-            if let Some(found) = extract_import_path(child, source) {
+            if let Some(found) = extract_import_path_depth(child, source, depth + 1) {
                 return Some(found);
             }
         }
@@ -491,7 +498,10 @@ fn extract_import_path(node: Node, source: &str) -> Option<String> {
 
 fn count_params(node: Node, _source: &str) -> u32 {
     let mut count = 0;
-    fn walk(n: Node, count: &mut u32) {
+    fn walk(n: Node, count: &mut u32, depth: u32) {
+        if depth >= MAX_TRAVERSE_DEPTH {
+            return;
+        }
         if n.kind() == "parameter"
             || n.kind() == "formal_parameter"
             || n.kind().contains("param")
@@ -500,17 +510,20 @@ fn count_params(node: Node, _source: &str) -> u32 {
         }
         for i in 0..n.child_count() {
             if let Some(child) = n.child(i) {
-                walk(child, count);
+                walk(child, count, depth + 1);
             }
         }
     }
-    walk(node, &mut count);
+    walk(node, &mut count, 0);
     count
 }
 
 fn structural_hash(node: Node, _source: &str) -> String {
     let mut structure = Vec::new();
-    fn walk(n: Node, out: &mut Vec<u8>) {
+    fn walk(n: Node, out: &mut Vec<u8>, depth: u32) {
+        if depth >= MAX_TRAVERSE_DEPTH {
+            return;
+        }
         let kind = n.kind();
         if !kind.contains("identifier") && !kind.contains("comment") {
             out.extend_from_slice(kind.as_bytes());
@@ -518,11 +531,11 @@ fn structural_hash(node: Node, _source: &str) -> String {
         }
         for i in 0..n.child_count() {
             if let Some(child) = n.child(i) {
-                walk(child, out);
+                walk(child, out, depth + 1);
             }
         }
     }
-    walk(node, &mut structure);
+    walk(node, &mut structure, 0);
     let mut hasher = Md5::new();
     hasher.update(&structure);
     let result = hasher.finalize();

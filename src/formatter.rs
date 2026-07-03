@@ -488,7 +488,8 @@ pub fn format_compact(
     out.push_str("## File Index\n\n");
     let mut sorted_files: Vec<_> = file_metrics.iter().collect();
     sorted_files.sort_by_key(|(p, _)| p.as_str());
-    let file_limit = if sorted_files.len() > 30 { 20 } else { sorted_files.len() };
+    const FILE_INDEX_LIMIT: usize = 30;
+    let file_limit = sorted_files.len().min(FILE_INDEX_LIMIT);
     let file_overflow = sorted_files.len().saturating_sub(file_limit);
     for (path, a) in &sorted_files[..file_limit] {
         let mut parts = Vec::new();

@@ -4,6 +4,8 @@ use std::path::Path;
 
 use ignore::WalkBuilder;
 
+use crate::config::Config;
+
 pub struct DataLayer {
     pub model_names: Vec<String>,
     pub schema_files: Vec<String>,
@@ -11,21 +13,23 @@ pub struct DataLayer {
     pub orm: Option<String>,
 }
 
-const MAX_FILE_SIZE: u64 = 200 * 1024;
-
-pub fn detect_data_layer(root: &Path) -> DataLayer {
+pub fn detect_data_layer(root: &Path, config: &Config) -> DataLayer {
     let mut model_names: Vec<String> = Vec::new();
     let mut schema_files: Vec<String> = Vec::new();
     let mut migration_dirs: Vec<String> = Vec::new();
     let mut orm: Option<String> = None;
     let mut seen_models: HashSet<String> = HashSet::new();
 
+    let max_file_size = config.max_file_size;
+    let extra_ignore_dirs: Vec<String> = config.ignore_dirs.clone();
+    let ignore_files: Vec<String> = config.ignore_files.clone();
+
     let walker = WalkBuilder::new(root)
         .hidden(true)
         .git_ignore(true)
         .git_global(false)
         .git_exclude(false)
-        .filter_entry(|entry| {
+        .filter_entry(move |entry| {
             let name = entry.file_name().to_string_lossy();
             if name.starts_with(".plugkit-browser-profile") {
                 return false;
@@ -33,12 +37,20 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             if name.starts_with("._") {
                 return false;
             }
-            !matches!(
+            if matches!(
                 name.as_ref(),
                 "node_modules" | ".git" | "dist" | "build" | "target"
                     | ".next" | ".nuxt" | "coverage" | "__pycache__"
                     | ".venv" | "vendor" | ".cache" | ".output" | ".gm"
-            )
+            ) {
+                return false;
+            }
+            if entry.path().is_dir() {
+                for dir in &extra_ignore_dirs {
+                    if name.as_ref() == dir.as_str() { return false; }
+                }
+            }
+            true
         })
         .build();
 
@@ -75,7 +87,7 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
         }
 
         if let Ok(meta) = path.metadata() {
-            if meta.len() > MAX_FILE_SIZE {
+            if meta.len() > max_file_size {
                 continue;
             }
         }
@@ -84,6 +96,11 @@ pub fn detect_data_layer(root: &Path) -> DataLayer {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
+
+        if crate::matches_ignore_pattern(&file_name, &ignore_files) {
+            continue;
+        }
+
         let ext = path
             .extension()
             .map(|e| e.to_string_lossy().to_string())

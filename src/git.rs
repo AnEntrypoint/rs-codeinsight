@@ -37,14 +37,7 @@ pub fn analyze_git(root: &Path) -> GitContext {
         ctx.uncommitted = status
             .lines()
             .filter(|l| !l.is_empty())
-            .map(|l| {
-                let trimmed = l.trim();
-                if trimmed.len() > 3 {
-                    trimmed[3..].to_string()
-                } else {
-                    trimmed.to_string()
-                }
-            })
+            .map(parse_porcelain_line)
             .collect();
     }
 
@@ -66,6 +59,23 @@ pub fn analyze_git(root: &Path) -> GitContext {
     }
 
     ctx
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn parse_porcelain_line(line: &str) -> String {
+    if line.len() < 2 {
+        return line.trim().to_string();
+    }
+    let status_code = &line[..2];
+    let rest = line[2..].trim_start();
+
+    let is_rename_or_copy = status_code.contains('R') || status_code.contains('C');
+    if is_rename_or_copy {
+        if let Some(arrow_pos) = rest.find(" -> ") {
+            return rest[arrow_pos + 4..].to_string();
+        }
+    }
+    rest.to_string()
 }
 
 #[cfg(not(target_arch = "wasm32"))]

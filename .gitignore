@@ -31,3 +31,4 @@ dist/
 .gm/exec-spool/
 # tracked: .gm/rs-learn.db, .gm/code-search/, .gm/disciplines/, AGENTS.md, .gm/prd.yml
 # <<< gm managed
+.gm/pw-sock-*/

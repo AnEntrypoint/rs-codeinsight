@@ -73,8 +73,8 @@ fn parse_string_array(value: &str) -> Vec<String> {
     }
 
     let inner = &trimmed[1..trimmed.len() - 1];
-    inner
-        .split(',')
+    split_top_level_commas(inner)
+        .into_iter()
         .filter_map(|item| {
             let s = item.trim();
             if s.len() >= 2
@@ -89,4 +89,33 @@ fn parse_string_array(value: &str) -> Vec<String> {
             }
         })
         .collect()
+}
+
+fn split_top_level_commas(inner: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut quote_char: Option<char> = None;
+
+    for c in inner.chars() {
+        match quote_char {
+            Some(q) => {
+                current.push(c);
+                if c == q {
+                    quote_char = None;
+                }
+            }
+            None => {
+                if c == '"' || c == '\'' {
+                    quote_char = Some(c);
+                    current.push(c);
+                } else if c == ',' {
+                    parts.push(std::mem::take(&mut current));
+                } else {
+                    current.push(c);
+                }
+            }
+        }
+    }
+    parts.push(current);
+    parts
 }
