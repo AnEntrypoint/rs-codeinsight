@@ -46,3 +46,31 @@
 - id: fix-duplicate-freshness-digest-fn
   witness: 'src/lib.rs: gated the wasm-variant compute_freshness_digest_from_files with #[cfg(target_arch="wasm32")] (was previously ungated, colliding with the native #[cfg(not(target_arch="wasm32"))] variant), and ungated hex_encode/file_stamp so both variants can call them; cargo check confirms E0428/E0425 errors resolved, clean compile'
   status: completed
+- id: fix-module-exports-brace-slice-panic
+  description: 'analyzer.rs:194-208 module.exports brace scan panics (begin>end slice) when a } appears in source text before the { of the exports object (e.g. string literal containing a brace). Witness: exec run source module.exports = "}" + {a:1} panics at analyzer.rs:199:38.'
+  status: completed
+  witness: analyzer.rs:194-211 now uses depth-counted find_matching_brace_analyzer helper (added after count_params, analyzer.rs ~502). cargo build clean. Adversarial input module.exports = "}" + {a:1} no longer panics (was begin>end 24>18 slice panic), correctly extracts {"a"}; existing cases (plain object, empty object, exports.x form) unchanged and correct.
+- id: perf-audit-analyzer-depgraph-lib
+  description: 'Sweep analyzer.rs, depgraph.rs, lib.rs for quadratic-or-worse patterns beyond already-fixed import-resolver hotspot: nested loops over full file/function set repeated per-item. Witness via code read + Big-O reasoning per loop.'
+  status: completed
+  witness: Read every for-loop in analyzer.rs/depgraph.rs/lib.rs/formatter.rs/json_output.rs. depgraph.rs barrel-reexport loop (150-166) is O(2 levels * files * fan_in * fan_out) bounded by real fan-in/out not global file-count-squared, same class already accepted. resolve_alias_import (depgraph.rs:330-394) loops path_aliases (tsconfig-sized, small) x top_dirs (small set of top-level dirs, not file count) -- not quadratic in repo size. formatter.rs/json_output.rs loops are single-pass over file_metrics.values() or per-file func_names, linear. lib.rs collect_files walker is single-pass; matches_ignore_pattern is O(patterns) per file, patterns user-config-sized. No new quadratic-in-file-count hotspot found beyond the already-fixed import-resolver.
+- id: panic-audit-unwrap-expect-slice-index
+  description: codesearch+grep sweep of all .unwrap()/.expect()/panic!/slice-indexing/integer-cast sites reachable from parsed source content across all src/*.rs; construct adversarial input per candidate, fix genuine panics only.
+  status: completed
+  witness: 'grep -n unwrap\(\)|expect\(|panic! across src/*.rs: only real call site is depgraph.rs:645 single_importer = node.imported_by.iter().next().unwrap() which is structurally guarded by the preceding if node.imported_by.len() == 1 check (analyzer.rs conventions.rs hits are string-literal detection code, not actual unwrap calls). Found and fixed one genuine panic NOT caught by unwrap/expect grep: analyzer.rs module.exports brace text.find(''{'')/find(''}'') pair (see fix-module-exports-brace-slice-panic row) -- reproduced via exec witness, fixed with depth-counted brace matching. Checked byte-slicing sites at analyzer.rs:175-176 (import() call quote extraction) -- start_q/end_q both come from find() on ASCII quote chars so slice boundaries are always char-boundary-safe; checked analyzer.rs:330-339 (const/let declaration parsing) -- uses find(''='')/split on ASCII delimiters with unwrap_or("") fallback, no panic path. No other genuine adversarial-reachable panic found.'
+- id: unsafe-block-audit
+  description: 'codesearch for unsafe blocks across src/*.rs; verify soundness or fix. Witness: grep -rn unsafe src/*.rs returned zero hits.'
+  status: completed
+  witness: grep -rn unsafe src/*.rs returned zero matches. codesearch for unsafe block also returned no genuine unsafe block in this crate's own source (only struct field named similarly in unrelated hits). No unsafe code exists in rs-codeinsight; nothing to audit or fix.
+- id: todo-stub-audit
+  description: 'codesearch for TODO/FIXME/unimplemented!/todo!/stub markers and silently-no-op language code paths. Witness: grep hits found are all feature strings (scanner.rs/formatter.rs/json_output.rs detect TODO/FIXME IN SCANNED repos), not stubs in this crate itself -- verify no real stub exists.'
+  status: completed
+  witness: 'grep -rn TODO|FIXME|unimplemented!|todo! src/*.rs: all hits are in scanner.rs/formatter.rs/json_output.rs and are this crate''s OWN feature implementation for detecting TODO/FIXME comments IN SCANNED target repos (scanner.rs:34-48 scan_source, formatter.rs:460/464 display, json_output.rs:178/184 JSON emission) -- not stubs or unfinished code in rs-codeinsight itself. No unimplemented!/todo!/stub marker exists anywhere in src/*.rs. Language-support code paths (lang.rs get_language, conventions.rs per-language detectors) all have real implementations per language, none silently no-op -- unsupported languages correctly return None/skip rather than fake-succeeding.'
+- id: dead-duplicate-code-audit
+  description: codesearch for exported pub fn/pub struct across src/*.rs with zero real callers within the crate; remove or wire up genuine dead code.
+  status: completed
+  witness: codesearch confirmed all major pub fns (analyze_with_files, analyze_with_files_and_config, analyze_tree, build_dep_graph, detect_dead_code, detect_key_locations_from_paths) are called from lib.rs::analyze_with_files_and_config real pipeline, ci-6bfab65e-7 hit shows detect_dead_code, format_json/format_compact, all wired. No zero-caller exported function found across src/*.rs during this sweep -- prior session already handled the duplicate-definition compile-blocker in lib.rs. No new dead code found.
+- id: cleanup-file-level-hygiene
+  description: 'File-level cleanup pass: remove any leftover scratch/temp artifacts, verify Cargo.toml/README consistent with current feature set, no orphaned files at repo root.'
+  status: completed
+  witness: ls src/ confirms 14 focused module files, no orphaned/scratch files at repo root beyond standard Cargo.toml/README/Cargo.lock/.gitignore/.gm. No stray *.rs.bak or temp files. Witness scratch cargo project used for adversarial exec testing was created under system temp (/tmp/witness_ci), never inside rs-codeinsight tree, so no cleanup needed there.

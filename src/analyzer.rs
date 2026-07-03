@@ -195,12 +195,15 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
         let text = node_text(node, source);
         if text.starts_with("module.exports") || text.starts_with("exports.") {
             if let Some(cap) = text.find('{') {
-                if let Some(end) = text.find('}') {
-                    let inner = &text[cap + 1..end];
-                    for name in inner.split(',') {
-                        let n = name.split(':').next().unwrap_or("").trim();
-                        if !n.is_empty() {
-                            analysis.exported_names.insert(n.to_string());
+                if let Some(end_rel) = find_matching_brace_analyzer(&text[cap..]) {
+                    let end = cap + end_rel;
+                    if end > cap + 1 {
+                        let inner = &text[cap + 1..end];
+                        for name in inner.split(',') {
+                            let n = name.split(':').next().unwrap_or("").trim();
+                            if !n.is_empty() {
+                                analysis.exported_names.insert(n.to_string());
+                            }
                         }
                     }
                 }
@@ -491,6 +494,23 @@ fn extract_import_path_depth(node: Node, source: &str, depth: u32) -> Option<Str
             if let Some(found) = extract_import_path_depth(child, source, depth + 1) {
                 return Some(found);
             }
+        }
+    }
+    None
+}
+
+fn find_matching_brace_analyzer(s: &str) -> Option<usize> {
+    let mut depth = 0i32;
+    for (i, c) in s.char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
         }
     }
     None

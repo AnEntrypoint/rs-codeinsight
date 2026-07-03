@@ -1,0 +1,8 @@
+- description: analyzer.rs:194-208 module.exports brace-scan panics when a later } appears before the matching { (e.g. string literal containing }) via unguarded cap+1..end slice
+  witness: 'exec run: source module.exports = "}" + {a:1} panics at src/analyzer.rs:199:38 begin > end (24 > 18) when slicing'
+  status: witnessed
+  id: mut-1783076114885
+  witness_evidence: 'Fixed analyzer.rs:194-211 by adding find_matching_brace_analyzer (depth-counted, mirrors project.rs:114 find_matching_brace) replacing naive text.find(''}''). Rebuilt via cargo build (dev profile, no errors). Re-ran adversarial witness harness (tmp cargo crate depending on rs-codeinsight path) with source module.exports = "}" + {a:1}: previously panicked at analyzer.rs:199:38 begin>end 24>18; after fix returns {"a"} with no panic. Also verified module.exports = { foo, bar, baz }, module.exports = {}, exports.x = { onlyOne } still produce correct exported_names sets.'
+- id: module-exports-brace-panic
+  description: unguarded find('{')/find('}') pair panics on string-literal-embedded brace
+  status: unknown
