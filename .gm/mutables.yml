@@ -5,4 +5,5 @@
   witness_evidence: 'Fixed analyzer.rs:194-211 by adding find_matching_brace_analyzer (depth-counted, mirrors project.rs:114 find_matching_brace) replacing naive text.find(''}''). Rebuilt via cargo build (dev profile, no errors). Re-ran adversarial witness harness (tmp cargo crate depending on rs-codeinsight path) with source module.exports = "}" + {a:1}: previously panicked at analyzer.rs:199:38 begin>end 24>18; after fix returns {"a"} with no panic. Also verified module.exports = { foo, bar, baz }, module.exports = {}, exports.x = { onlyOne } still produce correct exported_names sets.'
 - id: module-exports-brace-panic
   description: unguarded find('{')/find('}') pair panics on string-literal-embedded brace
-  status: unknown
+  status: witnessed
+  witness_evidence: 'Duplicate of mut-1783076114885 (same root cause, registered before the correctly-shaped mutable-add landed). Same fix applies: analyzer.rs find_matching_brace_analyzer depth-counted matcher, verified via exec witness (module.exports = "}" + {a:1} no longer panics, returns {"a"}), cargo build clean, additional adversarial cases (nested braces, unclosed brace, multi-brace strings) all pass without panic per VERIFY-phase exec run.'
