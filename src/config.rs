@@ -27,7 +27,7 @@ pub fn load_config(root: &Path) -> Config {
     let mut config = Config::default();
     let mut current_section = String::new();
 
-    for line in content.lines() {
+    for (line_no, line) in content.lines().enumerate() {
         let trimmed = line.trim();
 
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -36,6 +36,13 @@ pub fn load_config(root: &Path) -> Config {
 
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
             current_section = trimmed[1..trimmed.len() - 1].trim().to_string();
+            if current_section != "ignore" && current_section != "limits" {
+                eprintln!(
+                    "warning: .codeinsight.toml:{}: unknown section [{}]",
+                    line_no + 1,
+                    current_section
+                );
+            }
             continue;
         }
 
@@ -49,17 +56,55 @@ pub fn load_config(root: &Path) -> Config {
                         config.ignore_dirs = parse_string_array(value);
                     } else if key == "files" {
                         config.ignore_files = parse_string_array(value);
+                    } else {
+                        eprintln!(
+                            "warning: .codeinsight.toml:{}: unknown key '{}' in [ignore]",
+                            line_no + 1,
+                            key
+                        );
                     }
                 }
                 "limits" => {
                     if key == "max_file_size" {
                         if let Ok(v) = value.parse::<u64>() {
                             config.max_file_size = v;
+                        } else {
+                            eprintln!(
+                                "warning: .codeinsight.toml:{}: invalid value for 'max_file_size': '{}'",
+                                line_no + 1,
+                                value
+                            );
                         }
+                    } else {
+                        eprintln!(
+                            "warning: .codeinsight.toml:{}: unknown key '{}' in [limits]",
+                            line_no + 1,
+                            key
+                        );
                     }
                 }
-                _ => {}
+                "" => {
+                    eprintln!(
+                        "warning: .codeinsight.toml:{}: key '{}' outside any section, ignored",
+                        line_no + 1,
+                        key
+                    );
+                }
+                other => {
+                    eprintln!(
+                        "warning: .codeinsight.toml:{}: unknown key '{}' in [{}]",
+                        line_no + 1,
+                        key,
+                        other
+                    );
+                }
             }
+        } else {
+            eprintln!(
+                "warning: .codeinsight.toml:{}: malformed line, expected 'key = value': {}",
+                line_no + 1,
+                trimmed
+            );
         }
     }
 
@@ -77,10 +122,9 @@ fn parse_string_array(value: &str) -> Vec<String> {
         .into_iter()
         .filter_map(|item| {
             let s = item.trim();
-            if s.len() >= 2
-                && ((s.starts_with('"') && s.ends_with('"'))
-                    || (s.starts_with('\'') && s.ends_with('\'')))
-            {
+            if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+                Some(unescape_double_quoted(&s[1..s.len() - 1]))
+            } else if s.len() >= 2 && s.starts_with('\'') && s.ends_with('\'') {
                 Some(s[1..s.len() - 1].to_string())
             } else if s.is_empty() {
                 None
@@ -91,16 +135,45 @@ fn parse_string_array(value: &str) -> Vec<String> {
         .collect()
 }
 
+fn unescape_double_quoted(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('"') => result.push('"'),
+                Some('\\') => result.push('\\'),
+                Some('n') => result.push('\n'),
+                Some('t') => result.push('\t'),
+                Some('r') => result.push('\r'),
+                Some(other) => {
+                    result.push('\\');
+                    result.push(other);
+                }
+                None => result.push('\\'),
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 fn split_top_level_commas(inner: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut current = String::new();
     let mut quote_char: Option<char> = None;
+    let mut escaped = false;
 
     for c in inner.chars() {
         match quote_char {
             Some(q) => {
                 current.push(c);
-                if c == q {
+                if escaped {
+                    escaped = false;
+                } else if q == '"' && c == '\\' {
+                    escaped = true;
+                } else if c == q {
                     quote_char = None;
                 }
             }

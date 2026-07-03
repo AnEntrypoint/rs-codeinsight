@@ -26,10 +26,14 @@ pub struct ScanResults {
 
 pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
     let mut results = ScanResults::default();
+    let mut in_block_comment = false;
 
     for (line_num, line) in source.lines().enumerate() {
         let trimmed = line.trim();
         let ln = (line_num + 1) as u32;
+
+        let line_started_in_block_comment = in_block_comment;
+        in_block_comment = update_block_comment_state(trimmed, in_block_comment);
 
         if let Some(pos) = trimmed.find("TODO") {
             if is_comment_context(trimmed, pos) {
@@ -71,9 +75,18 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
         }
 
         let lower = trimmed.to_lowercase();
-        let is_test_file = rel_path.contains(".test.") || rel_path.contains(".spec.")
-            || rel_path.contains("__tests__") || rel_path.contains("/test/") || rel_path.contains("/tests/")
-            || rel_path.contains(".security.") || rel_path.ends_with("_test.go");
+        let is_test_file = {
+            let normalized = rel_path.replace('\\', "/");
+            let file_name = normalized.rsplit('/').next().unwrap_or(&normalized);
+            let dir_segments = normalized.rsplit_once('/').map(|(dirs, _)| dirs);
+            let has_test_dir_segment = dir_segments
+                .map(|dirs| dirs.split('/').any(|seg| seg == "test" || seg == "tests" || seg == "__tests__"))
+                .unwrap_or(false);
+            let stem_ends_with_test = file_name.rsplit_once('.')
+                .map(|(stem, _)| stem.ends_with(".test") || stem.ends_with("_test") || stem.ends_with(".spec") || stem.ends_with("_spec"))
+                .unwrap_or(false);
+            has_test_dir_segment || stem_ends_with_test || rel_path.contains(".security.")
+        };
         let is_json_file = rel_path.ends_with(".json");
         let is_jsx_html_attr = lower.contains("type=\"password\"") || lower.contains("placeholder=")
             || lower.contains("label=") || lower.contains("aria-")
@@ -147,7 +160,9 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
         if (trimmed.contains("SELECT") || trimmed.contains("INSERT") || trimmed.contains("DELETE")
             || trimmed.contains("UPDATE"))
             && (trimmed.contains("${") || trimmed.contains("` +") || trimmed.contains("' +"))
-            && !trimmed.starts_with("//")
+            && !line_started_in_block_comment
+            && !trimmed.starts_with("//") && !trimmed.starts_with("*") && !trimmed.starts_with('#')
+            && !trimmed.starts_with("\"\"\"") && !trimmed.starts_with("'''")
         {
             results.security.push(SecurityIssue {
                 file: rel_path.to_string(), line: ln,
@@ -216,6 +231,30 @@ fn is_comment_context(line: &str, pos: usize) -> bool {
     let before = &line[..pos];
     before.contains("//") || before.contains("/*") || before.contains("* ")
         || before.starts_with('#') || before.starts_with("*")
+}
+
+fn update_block_comment_state(trimmed: &str, currently_in_block_comment: bool) -> bool {
+    let mut in_block = currently_in_block_comment;
+    let mut rest = trimmed;
+    loop {
+        if in_block {
+            match rest.find("*/") {
+                Some(end) => {
+                    in_block = false;
+                    rest = &rest[end + 2..];
+                }
+                None => return true,
+            }
+        } else {
+            match rest.find("/*") {
+                Some(start) => {
+                    in_block = true;
+                    rest = &rest[start + 2..];
+                }
+                None => return false,
+            }
+        }
+    }
 }
 
 fn extract_note_text(line: &str, start: usize) -> String {

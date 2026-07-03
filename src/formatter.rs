@@ -322,6 +322,9 @@ pub fn format_compact(
             let more = if dep_graph.circular.len() > 2 { format!(" (+{} cycles)", dep_graph.circular.len() - 2) } else { String::new() };
             let _ = writeln!(out, "**Circular:** {}{more}", cycles.join(" | "));
         }
+        if dep_graph.circular_depth_limit_hit {
+            let _ = writeln!(out, "**Circular detection incomplete:** DFS depth limit reached, some cycles may be undetected");
+        }
         let mut ext_deps: Vec<_> = dep_graph.external_imports.iter()
             .filter(|(k, _)| !NODE_BUILTINS.contains(&k.as_str()))
             .filter(|(k, _)| !k.starts_with("@/") && !k.starts_with("./") && !k.starts_with("../"))

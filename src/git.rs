@@ -41,9 +41,10 @@ pub fn analyze_git(root: &Path) -> GitContext {
             .collect();
     }
 
+    // AMD: churn should count added/deleted files too, not just edits to existing ones
     if let Some(shortlog) = run_git(
         root,
-        &["log", "--format=%H", "--diff-filter=M", "--name-only", "-100", "--no-decorate"],
+        &["log", "--format=%H", "--diff-filter=AMD", "--name-only", "-100", "--no-decorate"],
     ) {
         let mut file_counts: HashMap<String, u32> = HashMap::new();
         for line in shortlog.lines() {

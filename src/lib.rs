@@ -132,7 +132,7 @@ pub fn analyze_with_files_and_config(root: &Path, options: AnalyzeOptions, files
     let conv = conventions::detect_conventions(&file_metrics, &file_languages);
 
     let mut text = if options.json_mode {
-        json_output::format_json(&stats, &file_metrics, &dep_graph, &dead_code, &duplicates, &project_ctx, &git_ctx, &tooling_ctx, &all_scans, &test_map, &data_layer, &key_locations, &conv)
+        json_output::format_json(&stats, &file_metrics, &dep_graph, &dead_code, &duplicates, &project_ctx, &git_ctx, &tooling_ctx, &all_scans, &test_map, &data_layer, &key_locations, &conv, &skipped_files)
     } else {
         formatter::format_compact(&stats, &file_metrics, &dep_graph, &dead_code, &duplicates, &project_ctx, &git_ctx, &tooling_ctx, &all_scans, &test_map, &data_layer, &key_locations, &conv)
     };

@@ -21,6 +21,7 @@ pub struct DepGraph {
     pub entry_points: HashSet<String>,
     pub coupling: HashMap<String, (u32, u32)>,
     pub circular: Vec<Vec<String>>,
+    pub circular_depth_limit_hit: bool,
     pub cross_module_deps: Vec<(String, String)>,
     pub external_imports: HashMap<String, u32>,
     pub modules: HashMap<String, ModuleInfo>,
@@ -147,11 +148,14 @@ pub fn build_dep_graph(
         }
     }
 
-    for _level in 0..2 {
+    const MAX_BARREL_PROPAGATION_ITERATIONS: u32 = 10;
+    for _level in 0..MAX_BARREL_PROPAGATION_ITERATIONS {
         let snapshot: HashMap<String, (HashSet<String>, HashSet<String>)> = nodes
             .iter()
             .map(|(k, v)| (k.clone(), (v.imports_from.clone(), v.imported_by.clone())))
             .collect();
+
+        let mut added_edge = false;
 
         for (barrel_path, (barrel_imports_from, barrel_imported_by)) in &snapshot {
             if barrel_imported_by.is_empty() || barrel_imports_from.is_empty() {
@@ -163,13 +167,21 @@ pub fn build_dep_graph(
                         continue;
                     }
                     if let Some(node) = nodes.get_mut(target.as_str()) {
-                        node.imported_by.insert(importer.clone());
+                        if node.imported_by.insert(importer.clone()) {
+                            added_edge = true;
+                        }
                     }
                     if let Some(node) = nodes.get_mut(importer.as_str()) {
-                        node.imports_from.insert(target.clone());
+                        if node.imports_from.insert(target.clone()) {
+                            added_edge = true;
+                        }
                     }
                 }
             }
+        }
+
+        if !added_edge {
+            break;
         }
     }
 
@@ -197,7 +209,7 @@ pub fn build_dep_graph(
         }
     }
 
-    let circular = detect_circular(&nodes);
+    let (circular, circular_depth_limit_hit) = detect_circular(&nodes);
 
     let project_dirs: HashSet<String> = file_analysis.keys()
         .filter_map(|p| {
@@ -279,7 +291,7 @@ pub fn build_dep_graph(
         info.exports += node.imported_by.len() as u32;
     }
 
-    DepGraph { nodes, orphans, entry_points, coupling, circular, cross_module_deps, external_imports, modules }
+    DepGraph { nodes, orphans, entry_points, coupling, circular, circular_depth_limit_hit, cross_module_deps, external_imports, modules }
 }
 
 fn resolve_import(
@@ -489,19 +501,20 @@ fn resolve_rust_import(
 
 const MAX_DFS_DEPTH: u32 = 2000;
 
-fn detect_circular(nodes: &HashMap<String, DepNode>) -> Vec<Vec<String>> {
+fn detect_circular(nodes: &HashMap<String, DepNode>) -> (Vec<Vec<String>>, bool) {
     let mut cycles = Vec::new();
     let mut visiting = HashSet::new();
     let mut visited = HashSet::new();
+    let mut depth_limit_hit = false;
 
     for node_key in nodes.keys() {
         if !visited.contains(node_key) {
-            dfs(node_key, nodes, &mut vec![], &mut visiting, &mut visited, &mut cycles, 0);
+            dfs(node_key, nodes, &mut vec![], &mut visiting, &mut visited, &mut cycles, 0, &mut depth_limit_hit);
         }
     }
 
     cycles.truncate(5);
-    cycles
+    (cycles, depth_limit_hit)
 }
 
 fn dfs(
@@ -512,8 +525,10 @@ fn dfs(
     visited: &mut HashSet<String>,
     cycles: &mut Vec<Vec<String>>,
     depth: u32,
+    depth_limit_hit: &mut bool,
 ) {
     if depth >= MAX_DFS_DEPTH {
+        *depth_limit_hit = true;
         return;
     }
     if visiting.contains(node) {
@@ -533,7 +548,7 @@ fn dfs(
 
     if let Some(n) = nodes.get(node) {
         for dep in &n.imports_from {
-            dfs(dep, nodes, path, visiting, visited, cycles, depth + 1);
+            dfs(dep, nodes, path, visiting, visited, cycles, depth + 1, depth_limit_hit);
         }
     }
 

@@ -56,6 +56,7 @@ pub fn format_json(
     data_layer: &DataLayer,
     key_locations: &KeyLocations,
     conventions: &[LanguageConventions],
+    skipped_files: &[(String, String)],
 ) -> String {
     let mut out = String::with_capacity(8192);
     out.push_str("{\n");
@@ -255,7 +256,15 @@ pub fn format_json(
         format!("{}: {}", json_str(&c.language), json_str_array(&c.conventions))
     }).collect();
     out.push_str(&conv_entries.join(", "));
-    out.push_str("}\n");
+    out.push_str("},\n");
+
+    let skipped_entries: Vec<String> = skipped_files.iter().map(|(path, reason)| {
+        format!("{{\"path\": {}, \"reason\": {}}}", json_str(path), json_str(reason))
+    }).collect();
+    out.push_str(&format!("  \"skipped_count\": {},\n", skipped_files.len()));
+    out.push_str("  \"skipped\": [");
+    out.push_str(&skipped_entries.join(", "));
+    out.push_str("]\n");
 
     out.push_str("}\n");
     out
