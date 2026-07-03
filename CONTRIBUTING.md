@@ -23,7 +23,7 @@ Thanks for your interest in contributing. Here's how to get started.
 
 ```
 src/
-  main.rs          — entry point, file collection, parallel dispatch
+  lib.rs           — entry point, file collection, parallel dispatch
   lang.rs          — tree-sitter grammar registry
   analyzer.rs      — AST traversal and entity extraction
   depgraph.rs      — dependency graph and dead code detection

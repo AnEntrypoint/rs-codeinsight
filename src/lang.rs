@@ -124,6 +124,14 @@ pub fn lang_abbrev(name: &str) -> &str {
         "R" => "R",
         "Julia" => "Jl",
         "Swift" => "Swift",
-        _ => &name[..4.min(name.len())],
+        _ => {
+            let end = name
+                .char_indices()
+                .map(|(i, _)| i)
+                .chain(std::iter::once(name.len()))
+                .find(|&i| i >= 4.min(name.len()))
+                .unwrap_or(name.len());
+            &name[..end]
+        }
     }
 }

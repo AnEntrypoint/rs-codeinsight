@@ -438,11 +438,49 @@ fn unquote(value: &str) -> Option<String> {
     let v = value.trim();
     if v.starts_with('"') {
         let inner = &v[1..];
-        let end = inner.find('"')?;
-        Some(inner[..end].to_string())
+        let bytes = inner.as_bytes();
+        let mut i = 0;
+        let mut escaped = false;
+        while i < bytes.len() {
+            let c = bytes[i];
+            if escaped {
+                escaped = false;
+            } else if c == b'\\' {
+                escaped = true;
+            } else if c == b'"' {
+                return Some(unescape_json_string(&inner[..i]));
+            }
+            i += 1;
+        }
+        None
     } else {
         None
     }
+}
+
+fn unescape_json_string(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('"') => result.push('"'),
+                Some('\\') => result.push('\\'),
+                Some('/') => result.push('/'),
+                Some('n') => result.push('\n'),
+                Some('t') => result.push('\t'),
+                Some('r') => result.push('\r'),
+                Some(other) => {
+                    result.push('\\');
+                    result.push(other);
+                }
+                None => result.push('\\'),
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
 }
 
 fn extract_string(json: &str, key: &str) -> Option<String> {

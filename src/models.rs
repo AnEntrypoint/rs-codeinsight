@@ -2,10 +2,6 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-use ignore::WalkBuilder;
-
-use crate::config::Config;
-
 pub struct DataLayer {
     pub model_names: Vec<String>,
     pub schema_files: Vec<String>,
@@ -13,82 +9,36 @@ pub struct DataLayer {
     pub orm: Option<String>,
 }
 
-pub fn detect_data_layer(root: &Path, config: &Config) -> DataLayer {
+pub fn detect_data_layer(root: &Path, files: &[(String, String)]) -> DataLayer {
     let mut model_names: Vec<String> = Vec::new();
     let mut schema_files: Vec<String> = Vec::new();
     let mut migration_dirs: Vec<String> = Vec::new();
     let mut orm: Option<String> = None;
     let mut seen_models: HashSet<String> = HashSet::new();
+    let mut seen_migration_dirs: HashSet<String> = HashSet::new();
 
-    let max_file_size = config.max_file_size;
-    let extra_ignore_dirs: Vec<String> = config.ignore_dirs.clone();
-    let ignore_files: Vec<String> = config.ignore_files.clone();
+    for (rel, abs) in files {
+        let path = Path::new(abs.as_str());
 
-    let walker = WalkBuilder::new(root)
-        .hidden(true)
-        .git_ignore(true)
-        .git_global(false)
-        .git_exclude(false)
-        .filter_entry(move |entry| {
-            let name = entry.file_name().to_string_lossy();
-            if name.starts_with(".plugkit-browser-profile") {
-                return false;
-            }
-            if name.starts_with("._") {
-                return false;
-            }
-            if matches!(
-                name.as_ref(),
-                "node_modules" | ".git" | "dist" | "build" | "target"
-                    | ".next" | ".nuxt" | "coverage" | "__pycache__"
-                    | ".venv" | "vendor" | ".cache" | ".output" | ".gm"
-            ) {
-                return false;
-            }
-            if entry.path().is_dir() {
-                for dir in &extra_ignore_dirs {
-                    if name.as_ref() == dir.as_str() { return false; }
-                }
-            }
-            true
-        })
-        .build();
-
-    for entry in walker.flatten() {
-        let path = entry.path();
-        let rel = path
-            .strip_prefix(root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace('\\', "/");
-
-        if path.is_dir() {
-            let dir_name = path
+        if let Some(parent) = path.parent() {
+            let parent_rel = parent
+                .strip_prefix(root)
+                .unwrap_or(parent)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let dir_name = parent
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-            if dir_name == "migrations" || dir_name == "migrate" {
-                let file_count = count_immediate_files(path);
+            let is_migration_dir = dir_name == "migrations"
+                || dir_name == "migrate"
+                || parent_rel.ends_with("db/migrations")
+                || parent_rel.ends_with("prisma/migrations");
+            if is_migration_dir && seen_migration_dirs.insert(parent_rel.clone()) {
+                let file_count = count_immediate_files(parent);
                 if file_count > 0 {
-                    migration_dirs.push(format!("{} ({} files)", rel, file_count));
+                    migration_dirs.push(format!("{} ({} files)", parent_rel, file_count));
                 }
-            }
-            if rel.ends_with("db/migrations") || rel.ends_with("prisma/migrations") {
-                let file_count = count_immediate_files(path);
-                if file_count > 0 && !migration_dirs.iter().any(|d| d.starts_with(&rel)) {
-                    migration_dirs.push(format!("{} ({} files)", rel, file_count));
-                }
-            }
-            continue;
-        }
-
-        if !path.is_file() {
-            continue;
-        }
-
-        if let Ok(meta) = path.metadata() {
-            if meta.len() > max_file_size {
-                continue;
             }
         }
 
@@ -96,10 +46,6 @@ pub fn detect_data_layer(root: &Path, config: &Config) -> DataLayer {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
-
-        if crate::matches_ignore_pattern(&file_name, &ignore_files) {
-            continue;
-        }
 
         let ext = path
             .extension()

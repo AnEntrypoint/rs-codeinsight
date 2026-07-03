@@ -35,8 +35,15 @@ pub struct AnalysisOutput {
 
 pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let cfg = config::load_config(root);
-    let files = collect_files(root, &cfg);
-    analyze_with_files_and_config(root, options, files, &cfg)
+    let all_files = collect_all_files(root, &cfg);
+    let files: Vec<(String, String, String)> = all_files
+        .iter()
+        .filter_map(|(rel, abs)| {
+            let ext = Path::new(abs).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+            get_language(&ext).map(|lang_def| (rel.clone(), abs.clone(), lang_def.name.to_string()))
+        })
+        .collect();
+    analyze_with_files_and_config_and_all_files(root, options, files, &cfg, Some(all_files))
 }
 
 pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
@@ -45,7 +52,14 @@ pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(Stri
 }
 
 pub fn analyze_with_files_and_config(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, config: &config::Config) -> AnalysisOutput {
+    analyze_with_files_and_config_and_all_files(root, options, files, config, None)
+}
+
+fn analyze_with_files_and_config_and_all_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, _config: &config::Config, all_files: Option<Vec<(String, String)>>) -> AnalysisOutput {
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
+    let data_layer_files: Vec<(String, String)> = all_files.unwrap_or_else(|| {
+        files.iter().map(|(r, a, _)| (r.clone(), a.clone())).collect()
+    });
 
     let outcomes: Vec<Result<(String, String, FileAnalysis, scanner::ScanResults), (String, String)>> = files
         .into_par_iter()
@@ -127,7 +141,7 @@ pub fn analyze_with_files_and_config(root: &Path, options: AnalyzeOptions, files
     let git_ctx = git::analyze_git(root);
     let tooling_ctx = tooling::detect_tooling(root);
     let test_map = scanner::map_tests(&all_rel_paths);
-    let data_layer = models::detect_data_layer(root, config);
+    let data_layer = models::detect_data_layer(root, &data_layer_files);
     let key_locations = locations::detect_key_locations_from_paths(&all_rel_paths);
     let conv = conventions::detect_conventions(&file_metrics, &file_languages);
 
@@ -151,6 +165,16 @@ pub fn analyze_with_files_and_config(root: &Path, options: AnalyzeOptions, files
 }
 
 pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, String, String)> {
+    collect_all_files(root, config)
+        .into_iter()
+        .filter_map(|(rel, abs)| {
+            let ext = Path::new(&abs).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+            get_language(&ext).map(|lang_def| (rel, abs, lang_def.name.to_string()))
+        })
+        .collect()
+}
+
+pub fn collect_all_files(root: &Path, config: &config::Config) -> Vec<(String, String)> {
     let mut files = Vec::new();
     let max_file_size = config.max_file_size;
     let extra_ignore_dirs: Vec<String> = config.ignore_dirs.clone();
@@ -187,12 +211,9 @@ pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, Strin
         let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         if file_name.starts_with("._") { continue; }
         if matches_ignore_pattern(&file_name, &ignore_files) { continue; }
-        let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
-        if let Some(lang_def) = get_language(&ext) {
-            let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/");
-            let abs = path.to_string_lossy().to_string();
-            files.push((rel, abs, lang_def.name.to_string()));
-        }
+        let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/");
+        let abs = path.to_string_lossy().to_string();
+        files.push((rel, abs));
     }
     files
 }
