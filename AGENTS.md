@@ -64,3 +64,5 @@ This crate is standalone and not bound by the gm-family no-test-framework rule. 
 4. Open a PR describing what changed and why.
 
 See `CONTRIBUTING.md` for the full contributor guide.
+
+@.gm/next-step.md

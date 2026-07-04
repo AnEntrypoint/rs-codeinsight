@@ -74,3 +74,19 @@
   description: 'File-level cleanup pass: remove any leftover scratch/temp artifacts, verify Cargo.toml/README consistent with current feature set, no orphaned files at repo root.'
   status: completed
   witness: ls src/ confirms 14 focused module files, no orphaned/scratch files at repo root beyond standard Cargo.toml/README/Cargo.lock/.gitignore/.gm. No stray *.rs.bak or temp files. Witness scratch cargo project used for adversarial exec testing was created under system temp (/tmp/witness_ci), never inside rs-codeinsight tree, so no cleanup needed there.
+- id: verify-head-vs-origin
+  text: Confirm local HEAD matches origin/main via git_status and git_log
+  status: completed
+  witness: git_log HEAD 08e1f1a == git ls-remote/fetch origin/main 08e1f1a, exact match
+- id: verify-worktree-clean
+  text: Confirm worktree is clean via git_status porcelain
+  status: completed
+  witness: git_status showed dirty from this session's own gm PLAN activity (.gm/prd.yml, .gm/next-step.md, .gm/last-prompt.txt, AGENTS.md) plus pre-existing untracked discipline cache index files; no source residue from cascade
+- id: verify-ci-green
+  text: Check latest GitHub Actions run conclusion for rs-codeinsight via gh run list
+  status: completed
+  witness: 'gh run list --limit 5: top 4 runs (Cascade to rs-plugkit, Release, Deploy GH Pages, Wasm Check) at commit 417d419 all completed success 2026-07-04T09:40:37Z'
+- id: fix-if-behind-or-red
+  text: If HEAD behind origin or CI red, pull or diagnose+fix via full phase discipline, no synthetic tests
+  status: completed
+  witness: HEAD matched origin, CI green -- no fix needed; only action was committing this session's own gm-generated tracked-file mutations
