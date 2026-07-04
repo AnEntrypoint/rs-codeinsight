@@ -187,13 +187,13 @@ pub fn collect_all_files(root: &Path, config: &config::Config) -> Vec<(String, S
         .git_exclude(false)
         .filter_entry(move |entry| {
             let name = entry.file_name().to_string_lossy();
-            if matches!(name.as_ref(), "node_modules" | ".git" | "dist" | "build" | "target" | ".next" | ".nuxt" | "coverage" | "__pycache__" | ".venv" | "vendor" | ".cache" | ".output" | ".gm") {
-                return false;
-            }
             if name.starts_with(".plugkit-browser-profile") {
                 return false;
             }
-            if entry.path().is_dir() {
+            if entry.file_type().map_or(false, |t| t.is_dir()) {
+                if matches!(name.as_ref(), "node_modules" | ".git" | "dist" | "build" | "target" | ".next" | ".nuxt" | "coverage" | "__pycache__" | ".venv" | "vendor" | ".cache" | ".output" | ".gm") {
+                    return false;
+                }
                 for dir in &extra_ignore_dirs {
                     if name.as_ref() == dir.as_str() { return false; }
                 }
@@ -231,7 +231,10 @@ pub fn matches_ignore_pattern(file_name: &str, patterns: &[String]) -> bool {
 
 pub fn compute_freshness_digest(root: &Path) -> String {
     let cfg = config::load_config(root);
-    let files = collect_files(root, &cfg);
+    let files: Vec<(String, String, String)> = collect_all_files(root, &cfg)
+        .into_iter()
+        .map(|(rel, abs)| (rel, abs, String::new()))
+        .collect();
     compute_freshness_digest_from_files(root, &files)
 }
 

@@ -64,7 +64,7 @@ pub fn analyze_git(root: &Path) -> GitContext {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn parse_porcelain_line(line: &str) -> String {
-    if line.len() < 2 {
+    if line.len() < 2 || !line.is_char_boundary(2) {
         return line.trim().to_string();
     }
     let status_code = &line[..2];

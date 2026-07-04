@@ -70,6 +70,20 @@ pub fn analyze_tree(tree: &Tree, source: &str) -> FileAnalysis {
     analysis.stats.lines = source.lines().count() as u32;
     traverse(tree.root_node(), source, &mut analysis, 0);
 
+    let needle = "process.env.";
+    let mut search_from = 0;
+    while let Some(pos) = source[search_from..].find(needle) {
+        let start = search_from + pos + needle.len();
+        let var_name: String = source[start..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if !var_name.is_empty() {
+            analysis.env_vars.insert(var_name);
+        }
+        search_from = start;
+    }
+
     for line in source.lines() {
         if line.is_empty() { continue; }
         if line.starts_with('\t') {
@@ -301,7 +315,7 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
     }
     if kind.contains("async") {
         analysis.async_count += 1;
-    } else {
+    } else if node.parent().map_or(true, |p| p.start_byte() != node.start_byte()) {
         let text = node_text(node, source);
         if text.starts_with("async ") {
             analysis.async_count += 1;
@@ -359,23 +373,6 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
                     analysis.global_state.push(name);
                 }
             }
-        }
-    }
-
-    {
-        let text = node_text(node, source);
-        let mut search_from = 0;
-        let needle = "process.env.";
-        while let Some(pos) = text[search_from..].find(needle) {
-            let start = search_from + pos + needle.len();
-            let var_name: String = text[start..]
-                .chars()
-                .take_while(|c| c.is_alphanumeric() || *c == '_')
-                .collect();
-            if !var_name.is_empty() {
-                analysis.env_vars.insert(var_name);
-            }
-            search_from = start;
         }
     }
 
