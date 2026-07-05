@@ -172,6 +172,14 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
     results
 }
 
+pub fn is_test_path(path: &str) -> bool {
+    let normalized = path.replace('\\', "/");
+    let fname = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    fname.contains(".test.") || fname.contains(".spec.")
+        || normalized.contains("/test/") || normalized.contains("/tests/")
+        || normalized.contains("/__tests__/")
+}
+
 pub fn map_tests(files: &[String]) -> TestMap {
     let mut source_files: Vec<String> = Vec::new();
     let mut test_files: Vec<String> = Vec::new();
@@ -179,10 +187,7 @@ pub fn map_tests(files: &[String]) -> TestMap {
     let mut uncovered: Vec<String> = Vec::new();
 
     for f in files {
-        let fname = f.rsplit('/').next().unwrap_or(f);
-        if fname.contains(".test.") || fname.contains(".spec.")
-            || f.contains("/__tests__/") || f.contains("/test/") || f.contains("/tests/")
-        {
+        if is_test_path(f) {
             test_files.push(f.clone());
         } else {
             source_files.push(f.clone());

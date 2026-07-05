@@ -3,7 +3,7 @@ use crate::analyzer::FileAnalysis;
 use crate::conventions::LanguageConventions;
 use crate::depgraph::{DeadCode, DepGraph};
 use crate::git::GitContext;
-use crate::lang::{lang_abbrev, KNOWN_SERVICES, NODE_BUILTINS};
+use crate::lang::{lang_abbrev, NODE_BUILTINS};
 use crate::locations::KeyLocations;
 use crate::models::DataLayer;
 use crate::project::ProjectContext;
@@ -70,23 +70,7 @@ pub fn format_json(
     out.push_str(&format!("    \"about\": {}\n", json_str_opt(&project.readme_excerpt)));
     out.push_str("  },\n");
 
-    let known_services = KNOWN_SERVICES;
-
-    let mut stack_parts: Vec<String> = project.frameworks.iter().cloned().collect();
-    for (prefix, label) in known_services {
-        let found = dep_graph.external_imports.keys().any(|k| {
-            k == *prefix || k.starts_with(&format!("{}/", prefix))
-        }) || project.dependencies.iter().any(|d| d == *prefix || d.starts_with(&format!("{}/", prefix)))
-          || project.dev_dependencies.iter().any(|d| d == *prefix || d.starts_with(&format!("{}/", prefix)));
-        if found && !stack_parts.iter().any(|s| s == *label) {
-            stack_parts.push(label.to_string());
-        }
-    }
-    if let Some(ref orm) = data_layer.orm {
-        if !stack_parts.iter().any(|s| s == orm) {
-            stack_parts.push(orm.clone());
-        }
-    }
+    let stack_parts = crate::formatter::detect_stack(project, dep_graph, data_layer);
     out.push_str(&format!("  \"stack\": {},\n", json_str_array(&stack_parts)));
 
     let total_functions: u32 = stats.by_language.values().map(|l| l.functions).sum();
@@ -127,25 +111,10 @@ pub fn format_json(
     out.push_str(&script_entries.join(", "));
     out.push_str("},\n");
 
-    let mut all_env: Vec<String> = Vec::new();
-    for analysis in file_metrics.values() {
-        for v in &analysis.env_vars {
-            if !all_env.contains(v) {
-                all_env.push(v.clone());
-            }
-        }
-    }
-    all_env.sort();
+    let all_env = crate::formatter::collect_env(file_metrics);
     out.push_str(&format!("  \"env\": {},\n", json_str_array(&all_env)));
 
-    let mut all_routes: Vec<String> = Vec::new();
-    for analysis in file_metrics.values() {
-        for r in &analysis.http_routes {
-            if !all_routes.contains(r) {
-                all_routes.push(r.clone());
-            }
-        }
-    }
+    let all_routes = crate::formatter::collect_routes(file_metrics);
     out.push_str(&format!("  \"routes\": {},\n", json_str_array(&all_routes)));
 
     out.push_str("  \"models\": {\n");

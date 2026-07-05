@@ -36,26 +36,25 @@ pub struct AnalysisOutput {
 pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let cfg = config::load_config(root);
     let all_files = collect_all_files(root, &cfg);
-    let files: Vec<(String, String, String)> = all_files
+    let files = filter_supported(&all_files);
+    analyze_files(root, options, files, Some(all_files))
+}
+
+pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
+    analyze_files(root, options, files, None)
+}
+
+fn filter_supported(all_files: &[(String, String)]) -> Vec<(String, String, String)> {
+    all_files
         .iter()
         .filter_map(|(rel, abs)| {
             let ext = Path::new(abs).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
             get_language(&ext).map(|lang_def| (rel.clone(), abs.clone(), lang_def.name.to_string()))
         })
-        .collect();
-    analyze_with_files_and_config_and_all_files(root, options, files, &cfg, Some(all_files))
+        .collect()
 }
 
-pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
-    let cfg = config::Config::default();
-    analyze_with_files_and_config(root, options, files, &cfg)
-}
-
-pub fn analyze_with_files_and_config(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, config: &config::Config) -> AnalysisOutput {
-    analyze_with_files_and_config_and_all_files(root, options, files, config, None)
-}
-
-fn analyze_with_files_and_config_and_all_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, _config: &config::Config, all_files: Option<Vec<(String, String)>>) -> AnalysisOutput {
+fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, all_files: Option<Vec<(String, String)>>) -> AnalysisOutput {
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
     let data_layer_files: Vec<(String, String)> = all_files.unwrap_or_else(|| {
         files.iter().map(|(r, a, _)| (r.clone(), a.clone())).collect()
@@ -165,13 +164,7 @@ fn analyze_with_files_and_config_and_all_files(root: &Path, options: AnalyzeOpti
 }
 
 pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, String, String)> {
-    collect_all_files(root, config)
-        .into_iter()
-        .filter_map(|(rel, abs)| {
-            let ext = Path::new(&abs).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
-            get_language(&ext).map(|lang_def| (rel, abs, lang_def.name.to_string()))
-        })
-        .collect()
+    filter_supported(&collect_all_files(root, config))
 }
 
 pub fn collect_all_files(root: &Path, config: &config::Config) -> Vec<(String, String)> {

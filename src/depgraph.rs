@@ -611,9 +611,7 @@ pub fn detect_dead_code(graph: &DepGraph) -> DeadCode {
             .map(|f| f.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        if fname.contains(".test.") || fname.contains(".spec.")
-            || path.contains("/test/") || path.contains("/__tests__/")
-        {
+        if crate::scanner::is_test_path(path) {
             dead.test_files.push(path.clone());
             continue;
         }
@@ -654,9 +652,7 @@ pub fn detect_dead_code(graph: &DepGraph) -> DeadCode {
             .map(|f| f.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        if fname.contains(".test.") || fname.contains(".spec.")
-            || path.contains("/test/") || path.contains("/__tests__/")
-        {
+        if crate::scanner::is_test_path(path) {
             continue;
         }
 

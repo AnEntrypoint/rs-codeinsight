@@ -51,7 +51,7 @@ pub fn format_compact(
     if let Some(ref name) = project.name {
         let ver = project.version.as_deref().unwrap_or("");
         let desc = project.description.as_deref().unwrap_or("");
-        let badges = if project.project_type == "npm" || project.project_type == "node" {
+        let badges = if project.project_type == "cli" || project.project_type == "library" {
             format!(" [![npm](https://img.shields.io/npm/v/{name})](https://www.npmjs.com/package/{name})")
         } else if project.project_type == "rust" {
             format!(" [![crates.io](https://img.shields.io/crates/v/{name})](https://crates.io/crates/{name})")
@@ -93,18 +93,7 @@ pub fn format_compact(
     }).collect();
     let _ = writeln!(out, "**Langs:** {}\n", lang_str.join(" "));
 
-    let mut stack_parts: Vec<String> = project.frameworks.iter().cloned().collect();
-    for (prefix, label) in KNOWN_SERVICES {
-        let found = dep_graph.external_imports.keys().any(|k| k == *prefix || k.starts_with(&format!("{prefix}/")))
-            || project.dependencies.iter().any(|d| d == *prefix || d.starts_with(&format!("{prefix}/")))
-            || project.dev_dependencies.iter().any(|d| d == *prefix || d.starts_with(&format!("{prefix}/")));
-        if found && !stack_parts.iter().any(|s| s == *label) {
-            stack_parts.push(label.to_string());
-        }
-    }
-    if let Some(ref orm) = data_layer.orm {
-        if !stack_parts.iter().any(|s| s == orm) { stack_parts.push(orm.clone()); }
-    }
+    let stack_parts = detect_stack(project, dep_graph, data_layer);
 
     let mut all_patterns: HashMap<String, u32> = HashMap::new();
     let mut all_identifiers: HashMap<String, u32> = HashMap::new();
@@ -169,14 +158,14 @@ pub fn format_compact(
         out.push('\n');
     }
 
-    let all_env: Vec<String> = file_metrics.values().flat_map(|a| a.env_vars.iter().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+    let all_env = collect_env(file_metrics);
     let total_sql: u32 = file_metrics.values().map(|a| a.sql_count).sum();
     let total_files: u32 = file_metrics.values().map(|a| a.file_io_count).sum();
     let total_json: u32 = file_metrics.values().map(|a| a.json_op_count).sum();
     let total_fetch: u32 = file_metrics.values().map(|a| a.fetch_count).sum();
     let total_emit: u32 = file_metrics.values().map(|a| a.event_emitters).sum();
     let total_listen: u32 = file_metrics.values().map(|a| a.event_listeners).sum();
-    let all_routes: Vec<String> = file_metrics.values().flat_map(|a| a.http_routes.iter().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+    let all_routes = collect_routes(file_metrics);
 
     let has_io = !all_env.is_empty() || total_sql > 0 || total_files > 0 || total_fetch > 0 || !all_routes.is_empty();
     if has_io {
@@ -498,7 +487,7 @@ pub fn format_compact(
         let mut parts = Vec::new();
         if !a.exported_names.is_empty() {
             let names: Vec<&str> = a.exported_names.iter().take(5).map(|s| s.as_str()).collect();
-            parts.push(format!("exports: [{}]", names.join("], [")));
+            parts.push(format!("exports: [{}]", names.join(", ")));
         }
         if !a.func_names.is_empty() {
             let fns: Vec<&str> = a.func_names.iter().take(4).map(|f| f.name.as_str()).collect();
@@ -560,4 +549,28 @@ pub fn format_compact(
 
 fn fmt_k(n: u32) -> String {
     if n >= 1000 { format!("{:.1}k", n as f64 / 1000.0) } else { n.to_string() }
+}
+
+pub fn detect_stack(project: &ProjectContext, dep_graph: &DepGraph, data_layer: &DataLayer) -> Vec<String> {
+    let mut stack_parts: Vec<String> = project.frameworks.iter().cloned().collect();
+    for (prefix, label) in KNOWN_SERVICES {
+        let found = dep_graph.external_imports.keys().any(|k| k == *prefix || k.starts_with(&format!("{prefix}/")))
+            || project.dependencies.iter().any(|d| d == *prefix || d.starts_with(&format!("{prefix}/")))
+            || project.dev_dependencies.iter().any(|d| d == *prefix || d.starts_with(&format!("{prefix}/")));
+        if found && !stack_parts.iter().any(|s| s == *label) {
+            stack_parts.push(label.to_string());
+        }
+    }
+    if let Some(ref orm) = data_layer.orm {
+        if !stack_parts.iter().any(|s| s == orm) { stack_parts.push(orm.clone()); }
+    }
+    stack_parts
+}
+
+pub fn collect_env(file_metrics: &HashMap<String, FileAnalysis>) -> Vec<String> {
+    file_metrics.values().flat_map(|a| a.env_vars.iter().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect()
+}
+
+pub fn collect_routes(file_metrics: &HashMap<String, FileAnalysis>) -> Vec<String> {
+    file_metrics.values().flat_map(|a| a.http_routes.iter().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect()
 }
