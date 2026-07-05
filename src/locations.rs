@@ -73,7 +73,7 @@ pub fn detect_key_locations_from_paths(all_rel_paths: &[String]) -> KeyLocations
         }
     }
 
-    locations.sort_by(|a, b| b.count.cmp(&a.count));
+    locations.sort_by_key(|l| std::cmp::Reverse(l.count));
 
     KeyLocations { locations }
 }

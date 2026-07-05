@@ -70,15 +70,16 @@ pub fn detect_tooling(root: &Path) -> ToolingContext {
         ctx.testing = Some("Vitest".into());
     } else if root.join("mocha").exists() || root.join(".mocharc.yml").exists() {
         ctx.testing = Some("Mocha".into());
-    } else if root.join("pytest.ini").exists()
-        || root.join("pyproject.toml").exists()
-        || root.join("setup.cfg").exists()
+    } else if root.join("pytest.ini").exists() {
+        ctx.testing = Some("pytest".into());
+    } else if root.join("setup.cfg").exists()
+        && fs::read_to_string(root.join("setup.cfg")).map(|c| c.contains("[tool:pytest]")).unwrap_or(false)
     {
-        if root.join("pyproject.toml").exists() {
-            if let Ok(content) = fs::read_to_string(root.join("pyproject.toml")) {
-                if content.contains("[tool.pytest") {
-                    ctx.testing = Some("pytest".into());
-                }
+        ctx.testing = Some("pytest".into());
+    } else if root.join("pyproject.toml").exists() {
+        if let Ok(content) = fs::read_to_string(root.join("pyproject.toml")) {
+            if content.contains("[tool.pytest") {
+                ctx.testing = Some("pytest".into());
             }
         }
     }

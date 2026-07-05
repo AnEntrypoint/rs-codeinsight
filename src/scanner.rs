@@ -125,12 +125,9 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
         let is_html_element = trimmed.starts_with('<') || lower.contains("<label")
             || lower.contains("<input") || lower.contains("<a ") || lower.contains("<h1")
             || lower.contains("<p ") || lower.contains("<selectitem");
-        let is_prop_value = {
-            let has_prop_assign = trimmed.contains("description=\"") || trimmed.contains("endpoint=\"")
-                || trimmed.contains("value=\"") || trimmed.contains("href=\"")
-                || trimmed.contains("style=\"") || trimmed.contains("class=\"");
-            has_prop_assign
-        };
+        let is_prop_value = trimmed.contains("description=\"") || trimmed.contains("endpoint=\"")
+            || trimmed.contains("value=\"") || trimmed.contains("href=\"")
+            || trimmed.contains("style=\"") || trimmed.contains("class=\"");
         let is_error_msg = lower.contains("is required") || lower.contains("do not match")
             || lower.contains("must be") || lower.contains("please") || lower.contains("confirm your");
         let is_path_pattern = lower.contains("/api/") || lower.contains("path ==")

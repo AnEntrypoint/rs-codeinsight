@@ -21,7 +21,7 @@ use rayon::prelude::*;
 use tree_sitter::Parser;
 
 use analyzer::{analyze_tree, FileAnalysis};
-use formatter::{AggregatedStats, LangStats};
+use formatter::AggregatedStats;
 use lang::get_language;
 
 pub struct AnalyzeOptions {
@@ -112,7 +112,7 @@ fn analyze_with_files_and_config_and_all_files(root: &Path, options: AnalyzeOpti
     for (rel_path, lang_name, analysis, scan) in results {
         stats.files += 1;
         stats.total_lines += analysis.stats.lines;
-        let ls = stats.by_language.entry(lang_name.clone()).or_insert_with(LangStats::default);
+        let ls = stats.by_language.entry(lang_name.clone()).or_default();
         ls.files += 1;
         ls.lines += analysis.stats.lines;
         ls.functions += analysis.stats.functions;
@@ -190,7 +190,7 @@ pub fn collect_all_files(root: &Path, config: &config::Config) -> Vec<(String, S
             if name.starts_with(".plugkit-browser-profile") {
                 return false;
             }
-            if entry.file_type().map_or(false, |t| t.is_dir()) {
+            if entry.file_type().is_some_and(|t| t.is_dir()) {
                 if matches!(name.as_ref(), "node_modules" | ".git" | "dist" | "build" | "target" | ".next" | ".nuxt" | "coverage" | "__pycache__" | ".venv" | "vendor" | ".cache" | ".output" | ".gm") {
                     return false;
                 }

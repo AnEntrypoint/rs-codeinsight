@@ -414,7 +414,7 @@ fn top_level_fields(body: &str) -> Vec<(String, &str)> {
                     }
                 }
                 b'{' | b'[' => depth += 1,
-                b'}' | b']' => { if depth > 0 { depth -= 1; } }
+                b'}' | b']' => { depth = depth.saturating_sub(1); }
                 b':' if depth == 0 && last_key.is_some() && value_start.is_none() => {
                     value_start = Some(i + 1);
                 }
