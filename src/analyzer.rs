@@ -90,7 +90,7 @@ pub fn analyze_tree(tree: &Tree, source: &str) -> FileAnalysis {
             analysis.indent_tab += 1;
         } else if line.starts_with("    ") {
             analysis.indent_4space += 1;
-        } else if line.starts_with("  ") && !line.starts_with("    ") {
+        } else if line.starts_with("  ") {
             analysis.indent_2space += 1;
         }
         let trimmed = line.trim();

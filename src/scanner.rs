@@ -95,8 +95,8 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
             || lower.contains("id=\"password\"") || lower.contains("id=\"token\"")
             || lower.contains("id=\"confirmpassword\"") || lower.contains("id=\"newpassword\"")
             || lower.contains("id=\"currentpassword\"")
-            || lower.contains("autocomplete=") || lower.contains("autocomplete=\"")
-            || (trimmed.starts_with("id=") || trimmed.starts_with("id=\""));
+            || lower.contains("autocomplete=")
+            || trimmed.starts_with("id=");
         let is_type_def = trimmed.starts_with("type ") || trimmed.starts_with("interface ")
             || trimmed.starts_with("export type") || trimmed.starts_with("export interface");
         let is_react_form = lower.contains("usestate") || lower.contains("useform") || lower.contains("formdata");

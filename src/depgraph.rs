@@ -384,11 +384,15 @@ fn resolve_alias_import(
                 if files.contains_key(&prefixed) {
                     return Some(prefixed);
                 }
+                let prefixed_no_ext = prefixed
+                    .trim_end_matches(".js")
+                    .trim_end_matches(".ts")
+                    .trim_end_matches(".jsx")
+                    .trim_end_matches(".tsx")
+                    .trim_end_matches(".mjs")
+                    .trim_end_matches(".cjs");
                 for ext in &exts {
-                    let with_ext = format!("{}{}", prefixed.trim_end_matches(".js")
-                        .trim_end_matches(".ts")
-                        .trim_end_matches(".jsx")
-                        .trim_end_matches(".tsx"), ext);
+                    let with_ext = format!("{}{}", prefixed_no_ext, ext);
                     if files.contains_key(&with_ext) {
                         return Some(with_ext);
                     }

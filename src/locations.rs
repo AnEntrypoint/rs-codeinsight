@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub struct KeyLocation {
     pub label: String,
@@ -44,7 +44,7 @@ pub fn detect_key_locations_from_paths(all_rel_paths: &[String]) -> KeyLocations
     ];
 
     let mut locations: Vec<KeyLocation> = Vec::new();
-    let mut used_dirs: HashMap<String, bool> = HashMap::new();
+    let mut used_dirs: HashSet<String> = HashSet::new();
 
     for (dir_path, count) in &dir_counts {
         if *count < 1 {
@@ -59,10 +59,9 @@ pub fn detect_key_locations_from_paths(all_rel_paths: &[String]) -> KeyLocations
         for (dir_names, label) in patterns {
             if dir_names.contains(&last_component) {
                 let key = format!("{}:{}", label, dir_path);
-                if used_dirs.contains_key(&key) {
+                if !used_dirs.insert(key) {
                     continue;
                 }
-                used_dirs.insert(key, true);
 
                 locations.push(KeyLocation {
                     label: label.to_string(),
