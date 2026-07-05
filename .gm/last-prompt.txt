@@ -1,1 +1,1 @@
-Validate the cascade left nothing stale in rs-codeinsight: confirm HEAD matches origin/main, worktree clean, latest GH Actions run green. Fix if HEAD behind or CI red.
+Audit rs-codeinsight for correctness bugs, dead code, redundant logic, unsound patterns (unsafe misuse, panics on reachable input, TOCTOU, resource leaks), and destructive-rearchitect opportunities that reduce maintenance burden. Fix every issue found directly in code. Run cargo build/cargo test/cargo check to verify. No new synthetic test files. Commit and push directly to main.

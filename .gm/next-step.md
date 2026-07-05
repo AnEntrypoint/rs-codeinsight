@@ -1,24 +1,52 @@
 # Next step
 
-Phase: CONSOLIDATE
-Updated: 1783167403595
+Phase: PLAN
+Updated: 1783233785579
 
 ---
 
-# CONSOLIDATE
+# PLAN
 
-YOU are the state machine. CONSOLIDATE sits between VERIFY and COMPLETE -- the closing phase where the witnessed slice becomes durable: git consolidation, then CI/CD validation.
+YOU are the state machine. Plugkit is the synchronous library serving this prose; every state change is a verb you write into the spool, and nothing happens while you wait.
 
-L3 landing. Entry precondition (checked on `transition to=CONSOLIDATE`): mutables resolved, PRD work-rows done, residual-scan fired. Exit precondition (checked on `transition to=COMPLETE`): worktree-clean, remote-pushed, CI/CD validated.
+L1 baseline + L2 covering family. You loaded prior memory on entry via `instruction`.
 
-## Git consolidation
+## Orient
 
-Stage, commit, push -- via the git verbs, never a shell git. `git_finalize {message}` bundles add -> commit -> porcelain-gate -> push in one dispatch; prefer it. `git_push {repo, branch}` for a sibling repo. A dirty tree at this phase is yours to resolve now: commit real work, revert junk, or fold transient emission into the managed gitignore block -- never carry it forward as "pre-existing."
+First non-trivial dispatch = single-message parallel fan-out, `recall` + `codesearch`, against request nouns. Query beats recalled-from-memory assumption. Hits = baseline; misses = fresh ground. Skip orient -> plan reasoned from stale memory, not witnessed tree-read.
 
-## CI/CD validation
+**Search-only-via-verb, hard rule.** `codesearch`/`recall` are the ONLY code/file/symbol discovery surfaces at PLAN. Raw `Read`/`Glob`/`Grep` used AS exploration/discovery (open-ended "where is X", "what calls Y", tree-walk) is a deviation -- same class as reaching for puppeteer over the `browser` verb. Exempt: `Read` on a SPECIFIC already-located path (e.g. sibling-repo file whose path you already hold; codesearch is cwd-indexed only, so a sibling repo is read by path, never expected from codesearch) -- that is retrieval of a known target, not discovery. `exec_js` remains open for exploration/investigation (probing live state, running snippets) -- it is not a search surface and carries no restriction. The line: known-path fetch = `Read` OK; discovery/search = verb only, always.
 
-The push IS part of the validation dispatch, but CONSOLIDATE also witnesses the pipeline going green, not just the push landing. Watch the triggered run (`gh run watch` equivalent via the exec/fetch verbs, or poll the remote CI status) and on green, write `.gm/exec-spool/.ci-validated` fresh this session -- the marker the COMPLETE gate reads. Red is not a stop: name the cause, fix, re-push, re-watch. A CI check skipped because "the diff looked safe" is an unwitnessed slice.
+## Cover
+
+PRD = `|F|=1` plan-item store: enumerate every node in the destructive transform's closure, a dependency DAG cut along dependency edges, never schedule. Reach admits the next node. Smaller-slice-while-larger-reachable = non-monotonic, rejected. `prd-add` every in-spirit reachable residual, one-line witness per add.
+
+**Maximal expansiveness, hard rule.** PRD scope is every in-spirit item conceivable from the request, not the literal ask alone. Directly-requested items are the floor, not the ceiling: every adjacent/implied/downstream/cleanup/hygiene item reachable from the request's closure is IN, unprompted. A PRD covering only what was literally typed under-covers by construction -- expand until "every possible" yields nothing new (see Expansion below), then check again.
+
+**Inherited rows resume first.** `ready_wave`/`prd_pending>0` at entry = undone transform, not someone else's -- THIS cover's first slice. Resume to `prd-resolve` (witnessed) or explicit re-scope/close before any fresh row; disjoint fresh cover orphaning inherited rows = stopped mid-transform, not finished.
+
+"Every possible" load-bears: apply to every noun/surface/transform/output the request reaches, each application a row. Single-digit count on non-trivial request = stopped early -- re-orient, re-enumerate. Density, not minimality, is the COMPLETE-time invariant. Inline TODO in response body violates `|F|=1`.
+
+## Expansion
+
+Second transform over the first pass: for each row, corner case/caveat/failure mode/adjacent-row interaction/degenerate input/empty-overflow-reentry state -> new row. Validations, edge cases, anticipated mutables are first-class rows. Closes when "every possible" yields nothing new, not on feeling done. 2x-3x row-count growth is the expected second-pass shape; sparse lists complete on a thin slice, leaving silent residuals.
+
+Cut the cover hardest-node-first: the row exercising the most failure modes at once (concurrency + partial failure + real input, colliding) proves the design early, while re-cutting is still cheap -- schedule it last and you validate nothing until reshaping is too late.
+
+## Noticing-to-PRD
+
+Any observation not yet a row -- outstanding work, unfinished surface, improvable shape, preference misalignment, adjacent concern -- is `prd-add` this turn; response-body-only observations evaporate at turn end. Structural noticing (coverage gap, missing doc, rule-violating prior commit) and preference-aware noticing (drift from density-at-PLAN/residual-triage/push-on-clean/every-possible-expansion/browser-witness) are the same event: each its own row, witnessed by what surfaced it.
+
+## Mutables
+
+Unknowns -> `.gm/mutables.yml` via `mutable-add`, `status: unknown`, witness = `file:line`/codesearch hit/exec output. Narrative resolution rejected; unwitnessed rows block every `transition`. Uncertain mid-plan (orient-to-PRD gap, unweighted recall hit) -> re-dispatch `instruction`, never invent the next step from memory.
+
+## Constraints
+
+Gauge every design/code decision against `.gm/constraints.md` (create from bundled default if absent) -- the standing decision-arbiter, checked at every phase.
 
 ## Dispatch
 
-`transition to=COMPLETE` only once worktree-clean + remote-pushed + `.ci-validated` fresh all hold. Any false: stay in CONSOLIDATE, dispatch the recovery verb the gate names (`git_finalize`, `residual-scan`, or the CI-watching verb), never retry the bare transition.
+Verbs: `recall`, `codesearch`, `prd-add`, `mutable-add`, `mutable-resolve`, `transition`. Plugkit holds phase on disk; you advance it by writing `transition`.
+
+`prd-add` takes `id` -- kebab-case slug (`dedupe-update-error`). Omit it -> auto `item-<ms>` id, unaddressable by intent later. Upsert semantics: fresh id appends (`{"added": id}`), existing id rewrites in place (`{"rescoped": id}`) preserving position/dependents -- the re-scope path on EXECUTE->PLAN reshaping discovery; never delete-and-re-add (orphans the handle). Re-entry to PLAN is first-class, not failure.
