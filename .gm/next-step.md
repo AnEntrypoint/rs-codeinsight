@@ -1,42 +1,24 @@
 # Next step
 
-Phase: EMIT
-Updated: 1783251450384
+Phase: CONSOLIDATE
+Updated: 1783253122193
 
 ---
 
-# EMIT
+# CONSOLIDATE
 
-YOU are the state machine. Plugkit is the synchronous library serving this prose; advancing the chain is your dispatch. Every write lands only through the verb you dispatch to land it.
+YOU are the state machine. CONSOLIDATE sits between VERIFY and COMPLETE -- the closing phase where the witnessed slice becomes durable: git consolidation, then CI/CD validation.
 
-L3 audit on disk. Land every node of the covering family; your first emit = closure.
+L3 landing. Entry precondition (checked on `transition to=CONSOLIDATE`): mutables resolved, PRD work-rows done, residual-scan fired. Exit precondition (checked on `transition to=COMPLETE`): worktree-clean, remote-pushed, CI/CD validated.
 
-## Scope: file mutation ONLY (hard rule)
+## Git consolidation
 
-EMIT's precondition: mutables already resolved -- EXECUTE's job, done before arrival. EMIT does not investigate, open mutables, resolve unknowns, or re-derive the plan. A mutable surfacing here is EXECUTE leaking into EMIT: `mutable-add` it, `transition to=EXECUTE` immediately -- never resolve inline, never write around it. EMIT's sole verb-of-work is Write/Edit of changes PLAN/EXECUTE already decided; narrower is correct, wider is drift.
+Stage, commit, push -- via the git verbs, never a shell git. `git_finalize {message}` bundles add -> commit -> porcelain-gate -> push in one dispatch; prefer it. `git_push {repo, branch}` for a sibling repo. A dirty tree at this phase is yours to resolve now: commit real work, revert junk, or fold transient emission into the managed gitignore block -- never carry it forward as "pre-existing."
 
-## Read-before-write
+## CI/CD validation
 
-On-disk content is the goal-relative reference; diffing an unread file diffs an imagined baseline. Observed disk divergence -> `transition` back to PLAN.
-
-## Fresh index
-
-Feed EMIT only digest-matching-live-filesystem search output; a stale-index result is an L1 bluff.
-
-## Write-then-verify
-
-One write per artifact, then a disk Read against every touched path -- witness the change, never reason it succeeded. Verified disk state IS the witness, not the tool-call return. Discrepancy -> regress to root cause, never retry.
-
-**Client-side artifacts: write-then-browser-witness, same turn.** `.html .js .jsx .ts .tsx .vue .svelte .mjs .css` or any browser-loaded path: disk Read is necessary, not sufficient -- also dispatch a `browser` verb `page.evaluate`-ing the invariant (page-side assertion is the real witness; disk Read only witnesses serialization). Skip = shipping a green-checked stub. COMPLETE gate refuses while any session-edited client-side file lacks its paired browser-witness (`deviation.client-edit-no-witness`, gates.rs) -- the missing witness is the next dispatch.
-
-## Artifact scope
-
-PRD names the writable artifacts; closure narrative goes to the commit message + `memorize-fire`, never the response body -- a file PRD does not name is response-body displacing dispatch. Write-then-verify exposing an adjacent artifact (generated file the build needs, doc naming the new artifact, witness script) -> `prd-add` it this turn; unlanded observation evaporates with the turn. Uncertain writes -> re-dispatch `instruction`.
-
-## Constraints
-
-Gauge every design/code decision against `.gm/constraints.md` (create from bundled default if absent) -- the standing decision-arbiter, checked at every phase.
+The push IS part of the validation dispatch, but CONSOLIDATE also witnesses the pipeline going green, not just the push landing. Watch the triggered run (`gh run watch` equivalent via the exec/fetch verbs, or poll the remote CI status) and on green, `fs_write` `.gm/exec-spool/.ci-validated` with `{"head_sha":"<git rev-parse HEAD>"}` -- the COMPLETE gate matches that sha against current HEAD; any other content, a stale sha, or a marker written before the final push reads as unvalidated. Red is not a stop: name the cause, fix, re-push, re-watch. A CI check skipped because "the diff looked safe" is an unwitnessed slice.
 
 ## Dispatch
 
-`transition` when every planned artifact is written and disk-verified. New unknown -> `transition` back to PLAN.
+`transition to=COMPLETE` only once worktree-clean + remote-pushed + `.ci-validated` fresh all hold. Any false: stay in CONSOLIDATE, dispatch the recovery verb the gate names (`git_finalize`, `residual-scan`, or the CI-watching verb), never retry the bare transition.
