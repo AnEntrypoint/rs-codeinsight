@@ -90,3 +90,27 @@
   text: If HEAD behind origin or CI red, pull or diagnose+fix via full phase discipline, no synthetic tests
   status: completed
   witness: HEAD matched origin, CI green -- no fix needed; only action was committing this session's own gm-generated tracked-file mutations
+- id: fix-digest-mtime-nondeterminism
+  note: 'REVISED: compute_freshness_digest_from_files (lib.rs:225-321) is DEAD CODE -- grep across rs-plugkit/src confirms ZERO callers of rs_codeinsight::compute_freshness_digest*. Actual shared __digest__ format is produced independently by rs-plugkit code_index.rs:577 current_digest() (git HEAD sha + crc32 of filtered porcelain), which is already content-deterministic, no mtime. rs-codeinsight is NOT the producer of the churn-suspect format. Still fix mtime-based fn here: dead code with a real correctness bug (violates f-compose-f-equals-f in isolation) -- either delete since unused, or fix to content-hash if kept as public API surface other consumers might reach.'
+  status: completed
+  witness: 'lib.rs: replaced mtime+size keying with file_content_hash (md5 of fs::read bytes); consolidated wasm/non-wasm cfg-split into single fn, format v2:<md5>:files=N. cargo build --features rust and --features wasm,rust both clean, zero warnings.'
+- id: fix-digest-dirty-count-nondeterminism
+  note: lib.rs:307-318 non-wasm variant hashes git status --porcelain line count (DIRTY=) into digest -- working-tree state, not content; same tree at different dirty-states produces different digest even with zero content diff. Remove or replace with tracked-content-only signal.
+  status: completed
+  witness: DIRTY= git-status-porcelain-count hashing removed entirely in the consolidation -- new file_content_hash-based fn has no git shell-out, no working-tree-state input at all.
+- id: unify-digest-wasm-nonwasm-variants
+  note: 'wasm variant (v1w: prefix, no git) and non-wasm variant (v1: prefix, +GIT_HEAD+DIRTY) produce DIFFERENT digests for identical file content depending on build target -- cross-context comparison (wasm caller vs native caller) never matches even when correct. Consolidate to single deterministic algorithm shared by both cfg arms.'
+  status: completed
+  witness: 'single compute_freshness_digest_from_files (no #[cfg] split) now used for both wasm32 and native targets, format prefix v2: for both -- cross-context digests now comparable for identical content.'
+- id: verify-digest-idempotent-resync
+  note: 'witness: compute digest, touch a file mtime only (no content change) or run in dirty vs clean tree, confirm digest identical post-fix'
+  status: completed
+  witness: 'cargo run --example digest_witness (disposable, removed after run): read lib.rs bytes, rewrote identical bytes to bump mtime, recomputed digest before/after -- d1==d2 confirmed (v2:eb6faeff91a79fc955154080e409b848:files=16 both times), assert_eq passed, WITNESS_PASS printed.'
+- id: survey-wasm-host-import-link-module
+  note: 'confirmed rs-codeinsight Cargo.toml crate-type=[cdylib,rlib], feature=wasm, zero extern host-import blocks in src/ -- no #[link(wasm_import_module)] surface exists here, rule is N/A to this crate (pure compute lib consumed by rs-plugkit host). No gap.'
+  status: completed
+  witness: codesearch queries for link_wasm_import_module/extern/wasm_bindgen across rs-codeinsight src/ returned zero hits; Cargo.toml crate-type=[cdylib,rlib] confirms wasm target but crate has zero host-import extern blocks -- rule is structurally N/A here, not a gap.
+- id: survey-sync-before-emit-correctness
+  note: 'analyze()/analyze_with_files() always fs::read_to_string + fresh parse per call, no caching layer inside this crate itself -- sync-before-emit correctness is a caller (rs-plugkit) responsibility for THIS digest; crate-local check: confirm no stale-cache short-circuit exists in lib.rs/json_output.rs'
+  status: completed
+  witness: analyze()/analyze_with_files() in lib.rs call fs::read_to_string + fresh tree-sitter parse per file per invocation, zero cache/memoization layer in this crate -- sync-before-emit freshness guarantee for indexing is entirely rs-plugkit callers responsibility (code_index.rs current_digest/git-HEAD+porcelain-crc32), confirmed already deterministic there, no action needed in rs-codeinsight.

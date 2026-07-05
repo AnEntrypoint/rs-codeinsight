@@ -1,45 +1,37 @@
 # Next step
 
-Phase: PLAN
-Updated: 1783234206083
+Phase: EMIT
+Updated: 1783251450384
 
 ---
 
-# PLAN
+# EMIT
 
-YOU are the state machine. Plugkit is the synchronous library serving this prose; every state change is a verb you write into the spool, and nothing happens while you wait.
+YOU are the state machine. Plugkit is the synchronous library serving this prose; advancing the chain is your dispatch. Every write lands only through the verb you dispatch to land it.
 
-L1 baseline + L2 covering family. You loaded prior memory on entry via `instruction`.
+L3 audit on disk. Land every node of the covering family; your first emit = closure.
 
-## Orient
+## Scope: file mutation ONLY (hard rule)
 
-First non-trivial dispatch = single-message parallel fan-out, `recall` + `codesearch`, against request nouns. Query beats recalled-from-memory assumption. Hits = baseline; misses = fresh ground. Skip orient -> plan reasoned from stale memory, not witnessed tree-read.
+EMIT's precondition: mutables already resolved -- EXECUTE's job, done before arrival. EMIT does not investigate, open mutables, resolve unknowns, or re-derive the plan. A mutable surfacing here is EXECUTE leaking into EMIT: `mutable-add` it, `transition to=EXECUTE` immediately -- never resolve inline, never write around it. EMIT's sole verb-of-work is Write/Edit of changes PLAN/EXECUTE already decided; narrower is correct, wider is drift.
 
-**Search-only-via-verb, hard rule.** `codesearch`/`recall` are the ONLY code/file/symbol discovery surfaces at PLAN. Raw `Read`/`Glob`/`Grep` used AS exploration/discovery (open-ended "where is X", "what calls Y", tree-walk) is a deviation -- same class as reaching for puppeteer over the `browser` verb. Exempt: `Read` on a SPECIFIC already-located path (e.g. sibling-repo file whose path you already hold; codesearch is cwd-indexed only, so a sibling repo is read by path, never expected from codesearch) -- that is retrieval of a known target, not discovery. `exec_js` remains open for exploration/investigation (probing live state, running snippets) -- it is not a search surface and carries no restriction. The line: known-path fetch = `Read` OK; discovery/search = verb only, always.
+## Read-before-write
 
-## Cover
+On-disk content is the goal-relative reference; diffing an unread file diffs an imagined baseline. Observed disk divergence -> `transition` back to PLAN.
 
-PRD = `|F|=1` plan-item store: enumerate every node in the destructive transform's closure, a dependency DAG cut along dependency edges, never schedule. Reach admits the next node. Smaller-slice-while-larger-reachable = non-monotonic, rejected. `prd-add` every in-spirit reachable residual, one-line witness per add.
+## Fresh index
 
-**Maximal expansiveness, hard rule.** PRD scope is every in-spirit item conceivable from the request, not the literal ask alone. Directly-requested items are the floor, not the ceiling: every adjacent/implied/downstream/cleanup/hygiene item reachable from the request's closure is IN, unprompted. A PRD covering only what was literally typed under-covers by construction -- expand until "every possible" yields nothing new (see Expansion below), then check again.
+Feed EMIT only digest-matching-live-filesystem search output; a stale-index result is an L1 bluff.
 
-**Inherited rows resume first.** `ready_wave`/`prd_pending>0` at entry = undone transform, not someone else's -- THIS cover's first slice. Resume to `prd-resolve` (witnessed) or explicit re-scope/close before any fresh row; disjoint fresh cover orphaning inherited rows = stopped mid-transform, not finished.
+## Write-then-verify
 
-"Every possible" load-bears: apply to every noun/surface/transform/output the request reaches, each application a row. Single-digit count on non-trivial request = stopped early -- re-orient, re-enumerate. Density, not minimality, is the COMPLETE-time invariant. Inline TODO in response body violates `|F|=1`.
+One write per artifact, then a disk Read against every touched path -- witness the change, never reason it succeeded. Verified disk state IS the witness, not the tool-call return. Discrepancy -> regress to root cause, never retry.
 
-## Expansion
+**Client-side artifacts: write-then-browser-witness, same turn.** `.html .js .jsx .ts .tsx .vue .svelte .mjs .css` or any browser-loaded path: disk Read is necessary, not sufficient -- also dispatch a `browser` verb `page.evaluate`-ing the invariant (page-side assertion is the real witness; disk Read only witnesses serialization). Skip = shipping a green-checked stub. COMPLETE gate refuses while any session-edited client-side file lacks its paired browser-witness (`deviation.client-edit-no-witness`, gates.rs) -- the missing witness is the next dispatch.
 
-Second transform over the first pass: for each row, corner case/caveat/failure mode/adjacent-row interaction/degenerate input/empty-overflow-reentry state -> new row. Validations, edge cases, anticipated mutables are first-class rows. Closes when "every possible" yields nothing new, not on feeling done. 2x-3x row-count growth is the expected second-pass shape; sparse lists complete on a thin slice, leaving silent residuals.
+## Artifact scope
 
-Cut the cover hardest-node-first: the row exercising the most failure modes at once (concurrency + partial failure + real input, colliding) proves the design early, while re-cutting is still cheap -- schedule it last and you validate nothing until reshaping is too late.
-
-## Noticing-to-PRD
-
-Any observation not yet a row -- outstanding work, unfinished surface, improvable shape, preference misalignment, adjacent concern -- is `prd-add` this turn; response-body-only observations evaporate at turn end. Structural noticing (coverage gap, missing doc, rule-violating prior commit) and preference-aware noticing (drift from density-at-PLAN/residual-triage/push-on-clean/every-possible-expansion/browser-witness) are the same event: each its own row, witnessed by what surfaced it.
-
-## Mutables
-
-Unknowns -> `.gm/mutables.yml` via `mutable-add`, `status: unknown`, witness = `file:line`/codesearch hit/exec output. Narrative resolution rejected; unwitnessed rows block every `transition`. Uncertain mid-plan (orient-to-PRD gap, unweighted recall hit) -> re-dispatch `instruction`, never invent the next step from memory.
+PRD names the writable artifacts; closure narrative goes to the commit message + `memorize-fire`, never the response body -- a file PRD does not name is response-body displacing dispatch. Write-then-verify exposing an adjacent artifact (generated file the build needs, doc naming the new artifact, witness script) -> `prd-add` it this turn; unlanded observation evaporates with the turn. Uncertain writes -> re-dispatch `instruction`.
 
 ## Constraints
 
@@ -47,6 +39,4 @@ Gauge every design/code decision against `.gm/constraints.md` (create from bundl
 
 ## Dispatch
 
-Verbs: `recall`, `codesearch`, `prd-add`, `mutable-add`, `mutable-resolve`, `transition`. Plugkit holds phase on disk; you advance it by writing `transition`.
-
-`prd-add` takes `id` -- kebab-case slug (`dedupe-update-error`). Omit it -> auto `item-<ms>` id, unaddressable by intent later. Upsert semantics: fresh id appends (`{"added": id}`), existing id rewrites in place (`{"rescoped": id}`) preserving position/dependents -- the re-scope path on EXECUTE->PLAN reshaping discovery; never delete-and-re-add (orphans the handle). Re-entry to PLAN is first-class, not failure.
+`transition` when every planned artifact is written and disk-verified. New unknown -> `transition` back to PLAN.

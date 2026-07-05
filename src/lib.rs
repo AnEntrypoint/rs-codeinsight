@@ -241,81 +241,29 @@ fn hex_encode(bytes: &[u8]) -> String {
     hex
 }
 
-fn file_stamp(abs: &str) -> (u128, u64) {
-    let meta = fs::metadata(abs).ok();
-    let mtime_nanos = meta.as_ref()
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-    (mtime_nanos, size)
+fn file_content_hash(abs: &str) -> [u8; 16] {
+    use md5::{Digest, Md5};
+    let mut hasher = Md5::new();
+    match fs::read(abs) {
+        Ok(bytes) => hasher.update(&bytes),
+        Err(_) => hasher.update(b"__unreadable__"),
+    }
+    hasher.finalize().into()
 }
 
-#[cfg(target_arch = "wasm32")]
 pub fn compute_freshness_digest_from_files(_root: &Path, files: &[(String, String, String)]) -> String {
     use md5::{Digest, Md5};
-    let mut sorted: Vec<(String, u128, u64)> = files.iter().map(|(rel, abs, _)| {
-        let (mtime_nanos, size) = file_stamp(abs);
-        (rel.clone(), mtime_nanos, size)
+    let mut sorted: Vec<(String, [u8; 16])> = files.par_iter().map(|(rel, abs, _)| {
+        (rel.clone(), file_content_hash(abs))
     }).collect();
     sorted.sort_by(|a, b| a.0.cmp(&b.0));
     let mut hasher = Md5::new();
-    for (rel, mt, sz) in &sorted {
+    for (rel, content_hash) in &sorted {
         hasher.update(rel.as_bytes());
         hasher.update(b"|");
-        hasher.update(mt.to_le_bytes());
-        hasher.update(b"|");
-        hasher.update(sz.to_le_bytes());
+        hasher.update(content_hash);
         hasher.update(b"\n");
     }
     let result = hasher.finalize();
-    format!("v1w:{}:files={}", hex_encode(&result), sorted.len())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn compute_freshness_digest_from_files(root: &Path, files: &[(String, String, String)]) -> String {
-    use md5::{Digest, Md5};
-    use std::process::Command;
-    let mut sorted: Vec<(String, u128, u64)> = files.par_iter().map(|(rel, abs, _)| {
-        let (mtime_nanos, size) = file_stamp(abs);
-        (rel.clone(), mtime_nanos, size)
-    }).collect();
-    sorted.sort_by(|a, b| a.0.cmp(&b.0));
-    let mut hasher = Md5::new();
-    for (rel, mt, sz) in &sorted {
-        hasher.update(rel.as_bytes());
-        hasher.update(b"|");
-        hasher.update(mt.to_le_bytes());
-        hasher.update(b"|");
-        hasher.update(sz.to_le_bytes());
-        hasher.update(b"\n");
-    }
-    let mut git_cmd = Command::new("git");
-    #[cfg(windows)]
-    { use std::os::windows::process::CommandExt; git_cmd.creation_flags(0x08000000); }
-    let combined = git_cmd
-        .args(["rev-parse", "--verify", "HEAD"])
-        .current_dir(root)
-        .output()
-        .ok()
-        .and_then(|o| if o.status.success() { Some(String::from_utf8_lossy(&o.stdout).trim().to_string()) } else { None })
-        .unwrap_or_default();
-    hasher.update(b"GIT_HEAD=");
-    hasher.update(combined.as_bytes());
-    hasher.update(b"\n");
-    let mut dirty_cmd = Command::new("git");
-    #[cfg(windows)]
-    { use std::os::windows::process::CommandExt; dirty_cmd.creation_flags(0x08000000); }
-    let dirty_count = dirty_cmd
-        .args(["status", "--porcelain"])
-        .current_dir(root)
-        .output()
-        .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).lines().count())
-        .unwrap_or(0);
-    hasher.update(b"DIRTY=");
-    hasher.update(dirty_count.to_le_bytes());
-    let result = hasher.finalize();
-    format!("v1:{}:files={}", hex_encode(&result), sorted.len())
+    format!("v2:{}:files={}", hex_encode(&result), sorted.len())
 }
