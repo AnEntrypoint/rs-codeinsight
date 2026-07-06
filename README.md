@@ -1,6 +1,6 @@
 # codeinsight
 
-[![CI](https://github.com/faizelmahomed/codeinsight/actions/workflows/ci.yml/badge.svg)](https://github.com/faizelmahomed/codeinsight/actions/workflows/ci.yml)
+[![CI](https://github.com/AnEntrypoint/rs-codeinsight/actions/workflows/wasm-check.yml/badge.svg)](https://github.com/AnEntrypoint/rs-codeinsight/actions/workflows/wasm-check.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 [![Languages](https://img.shields.io/badge/languages-13-green.svg)](#supported-languages)
@@ -135,8 +135,8 @@ codeinsight builds on that foundation with a Rust implementation for faster anal
 ### From source (requires Rust)
 
 ```bash
-git clone https://github.com/faizelmahomed/codeinsight.git
-cd codeinsight
+git clone https://github.com/AnEntrypoint/rs-codeinsight.git
+cd rs-codeinsight
 cargo build --release
 ```
 
@@ -160,7 +160,7 @@ npm install -g codeinsight
 
 ### Prebuilt binaries (coming soon)
 
-Prebuilt binaries for Windows x64, macOS ARM, macOS Intel, and Linux x64 will be available on the [GitHub Releases](https://github.com/faizelmahomed/codeinsight/releases) page.
+Prebuilt binaries for Windows x64, macOS ARM, macOS Intel, and Linux x64 will be available on the [GitHub Releases](https://github.com/AnEntrypoint/rs-codeinsight/releases) page.
 
 ## Usage
 
@@ -373,6 +373,10 @@ If your project doesn't have a README, or has a bare-bones one, codeinsight can'
 - No README at all
 
 The investment is one sentence. The payoff is every AI interaction on your codebase understanding the context.
+
+## Consumers
+
+This crate (`rs-codeinsight`, library name `rs_codeinsight`) is not currently a Cargo dependency of any other repository in the `AnEntrypoint` gm/rs-* family. `rs-plugkit` reimplemented its own file-collection and chunking natively (`code_index.rs`) rather than depending on this crate. There are zero live cross-repo consumers of this crate's public API today; it is built, tested, and used standalone.
 
 ## Contributing
 

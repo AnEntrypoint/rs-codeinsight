@@ -35,13 +35,13 @@ pub struct AnalysisOutput {
 
 pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let cfg = config::load_config(root);
-    let all_files = collect_all_files(root, &cfg);
+    let (all_files, collect_skips) = collect_all_files(root, &cfg);
     let files = filter_supported(&all_files);
-    analyze_files(root, options, files, Some(all_files))
+    analyze_files(root, options, files, Some(all_files), collect_skips)
 }
 
 pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
-    analyze_files(root, options, files, None)
+    analyze_files(root, options, files, None, Vec::new())
 }
 
 fn filter_supported(all_files: &[(String, String)]) -> Vec<(String, String, String)> {
@@ -54,7 +54,7 @@ fn filter_supported(all_files: &[(String, String)]) -> Vec<(String, String, Stri
         .collect()
 }
 
-fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, all_files: Option<Vec<(String, String)>>) -> AnalysisOutput {
+fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, all_files: Option<Vec<(String, String)>>, precollect_skips: Vec<(String, String)>) -> AnalysisOutput {
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
     let data_layer_files: Vec<(String, String)> = all_files.unwrap_or_else(|| {
         files.iter().map(|(r, a, _)| (r.clone(), a.clone())).collect()
@@ -89,7 +89,7 @@ fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, Strin
         })
         .collect();
 
-    let mut skipped_files: Vec<(String, String)> = Vec::new();
+    let mut skipped_files: Vec<(String, String)> = precollect_skips;
     let results: Vec<(String, String, FileAnalysis, scanner::ScanResults)> = outcomes
         .into_iter()
         .filter_map(|outcome| match outcome {
@@ -164,11 +164,12 @@ fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, Strin
 }
 
 pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, String, String)> {
-    filter_supported(&collect_all_files(root, config))
+    filter_supported(&collect_all_files(root, config).0)
 }
 
-pub fn collect_all_files(root: &Path, config: &config::Config) -> Vec<(String, String)> {
+pub fn collect_all_files(root: &Path, config: &config::Config) -> (Vec<(String, String)>, Vec<(String, String)>) {
     let mut files = Vec::new();
+    let mut skipped: Vec<(String, String)> = Vec::new();
     let max_file_size = config.max_file_size;
     let extra_ignore_dirs: Vec<String> = config.ignore_dirs.clone();
     let ignore_files: Vec<String> = config.ignore_files.clone();
@@ -198,17 +199,26 @@ pub fn collect_all_files(root: &Path, config: &config::Config) -> Vec<(String, S
     for entry in walker.flatten() {
         let path = entry.path();
         if !path.is_file() { continue; }
-        if let Ok(meta) = path.metadata() {
-            if meta.len() > max_file_size { continue; }
-        }
         let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         if file_name.starts_with("._") { continue; }
         if matches_ignore_pattern(&file_name, &ignore_files) { continue; }
         let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/");
+        match path.metadata() {
+            Ok(meta) => {
+                if meta.len() > max_file_size {
+                    skipped.push((rel, format!("exceeds max_file_size ({} bytes > {} bytes)", meta.len(), max_file_size)));
+                    continue;
+                }
+            }
+            Err(e) => {
+                skipped.push((rel, format!("metadata unreadable: {e}")));
+                continue;
+            }
+        }
         let abs = path.to_string_lossy().to_string();
         files.push((rel, abs));
     }
-    files
+    (files, skipped)
 }
 
 pub fn matches_ignore_pattern(file_name: &str, patterns: &[String]) -> bool {
@@ -225,6 +235,7 @@ pub fn matches_ignore_pattern(file_name: &str, patterns: &[String]) -> bool {
 pub fn compute_freshness_digest(root: &Path) -> String {
     let cfg = config::load_config(root);
     let files: Vec<(String, String, String)> = collect_all_files(root, &cfg)
+        .0
         .into_iter()
         .map(|(rel, abs)| (rel, abs, String::new()))
         .collect();
@@ -246,7 +257,10 @@ fn file_content_hash(abs: &str) -> [u8; 16] {
     let mut hasher = Md5::new();
     match fs::read(abs) {
         Ok(bytes) => hasher.update(&bytes),
-        Err(_) => hasher.update(b"__unreadable__"),
+        Err(_) => {
+            hasher.update(b"__unreadable__:");
+            hasher.update(abs.as_bytes());
+        }
     }
     hasher.finalize().into()
 }

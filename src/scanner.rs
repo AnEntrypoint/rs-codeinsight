@@ -24,6 +24,30 @@ pub struct ScanResults {
     pub security: Vec<SecurityIssue>,
 }
 
+fn contains_word(haystack: &str, word: &str) -> bool {
+    let hbytes = haystack.as_bytes();
+    let wbytes = word.as_bytes();
+    if wbytes.is_empty() || wbytes.len() > hbytes.len() {
+        return false;
+    }
+    let is_word_byte = |b: u8| b.is_ascii_alphanumeric();
+    let mut start = 0;
+    while let Some(rel) = haystack[start..].find(word) {
+        let pos = start + rel;
+        let before_ok = pos == 0 || !is_word_byte(hbytes[pos - 1]);
+        let end = pos + wbytes.len();
+        let after_ok = end >= hbytes.len() || !is_word_byte(hbytes[end]);
+        if before_ok && after_ok {
+            return true;
+        }
+        start = pos + 1;
+        if start >= hbytes.len() {
+            break;
+        }
+    }
+    false
+}
+
 pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
     let mut results = ScanResults::default();
     let mut in_block_comment = false;
@@ -140,8 +164,8 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
             && (trimmed.contains("= \"") || trimmed.contains("= '") || trimmed.contains("=\"") || trimmed.contains("='"))
             && !trimmed.starts_with("//") && !trimmed.starts_with("*")
             && !lower.contains("process.env") && !lower.contains("env.")
-            && !lower.contains("example") && !lower.contains("placeholder")
-            && !lower.contains("test") && !lower.contains("mock")
+            && !contains_word(&lower, "example") && !contains_word(&lower, "placeholder")
+            && !contains_word(&lower, "test") && !contains_word(&lower, "mock")
             && !is_test_file && !is_json_file
             && !is_jsx_html_attr && !is_type_def && !is_react_form
             && !is_empty_check && !is_const_enum && !is_html_element

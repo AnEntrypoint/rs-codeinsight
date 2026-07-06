@@ -458,6 +458,16 @@ fn unquote(value: &str) -> Option<String> {
     }
 }
 
+fn read_hex4(chars: &mut std::str::Chars) -> Option<u32> {
+    let mut value: u32 = 0;
+    for _ in 0..4 {
+        let c = chars.next()?;
+        let digit = c.to_digit(16)?;
+        value = (value << 4) | digit;
+    }
+    Some(value)
+}
+
 fn unescape_json_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars();
@@ -470,6 +480,45 @@ fn unescape_json_string(s: &str) -> String {
                 Some('n') => result.push('\n'),
                 Some('t') => result.push('\t'),
                 Some('r') => result.push('\r'),
+                Some('b') => result.push('\u{8}'),
+                Some('f') => result.push('\u{c}'),
+                Some('u') => {
+                    let mut rest = chars.clone();
+                    match read_hex4(&mut rest) {
+                        Some(high) => {
+                            chars = rest;
+                            if (0xD800..=0xDBFF).contains(&high) {
+                                let mut lookahead = chars.clone();
+                                if lookahead.next() == Some('\\') && lookahead.next() == Some('u') {
+                                    let mut low_rest = lookahead.clone();
+                                    if let Some(low) = read_hex4(&mut low_rest) {
+                                        if (0xDC00..=0xDFFF).contains(&low) {
+                                            let combined = 0x10000
+                                                + ((high - 0xD800) << 10)
+                                                + (low - 0xDC00);
+                                            if let Some(ch) = char::from_u32(combined) {
+                                                result.push(ch);
+                                                chars = low_rest;
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                                result.push('\u{fffd}');
+                            } else if (0xDC00..=0xDFFF).contains(&high) {
+                                result.push('\u{fffd}');
+                            } else if let Some(ch) = char::from_u32(high) {
+                                result.push(ch);
+                            } else {
+                                result.push('\u{fffd}');
+                            }
+                        }
+                        None => {
+                            result.push('\\');
+                            result.push('u');
+                        }
+                    }
+                }
                 Some(other) => {
                     result.push('\\');
                     result.push(other);

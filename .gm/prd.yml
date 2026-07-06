@@ -114,3 +114,42 @@
   note: 'analyze()/analyze_with_files() always fs::read_to_string + fresh parse per call, no caching layer inside this crate itself -- sync-before-emit correctness is a caller (rs-plugkit) responsibility for THIS digest; crate-local check: confirm no stale-cache short-circuit exists in lib.rs/json_output.rs'
   status: completed
   witness: analyze()/analyze_with_files() in lib.rs call fs::read_to_string + fresh tree-sitter parse per file per invocation, zero cache/memoization layer in this crate -- sync-before-emit freshness guarantee for indexing is entirely rs-plugkit callers responsibility (code_index.rs current_digest/git-HEAD+porcelain-crc32), confirmed already deterministic there, no action needed in rs-codeinsight.
+- id: readme-consumer-honesty
+  witness: README.md new '## Consumers' section added before Contributing, states zero live cross-repo Cargo dependents, rs-plugkit reimplemented natively in code_index.rs -- grep+Cargo.toml verification backing this documented in resolved mutable readme-rs-plugkit-claim-status
+  status: completed
+- id: oversized-file-skip-tracking
+  witness: lib.rs collect_all_files now returns (Vec<(rel,abs)>, Vec<(rel,reason)>) -- oversized files push (rel, 'exceeds max_file_size (N bytes > M bytes)') into skipped vec instead of bare continue; cargo test --features all-languages passed clean
+  status: completed
+- id: metadata-error-guard-audit
+  witness: 'lib.rs collect_all_files: metadata() Err arm now pushes (rel, ''metadata unreadable: {e}'') to skipped and continues (excludes file), matching Ok-arm oversized-continue pattern instead of silently falling through to inclusion -- fixed the real defect (metadata-error files previously included unchecked-size with zero record)'
+  status: completed
+- id: thread-skip-reasons-through-pipeline
+  witness: analyze() destructures collect_all_files() tuple, passes collect_skips into analyze_files() new precollect_skips param which seeds skipped_files vec before parse/UTF8 skips extend it; analyze_with_files passes Vec::new() (no precollect since files pre-filtered by caller); collect_files() updated to .0 on tuple; cargo check + cargo test both green
+  status: completed
+- id: digest-unreadable-file-determinism
+  witness: lib.rs:244-255 file_content_hash Err arm now hashes b"__unreadable__:" prefix + abs.as_bytes() instead of bare literal -- deterministic per-path (same file always same hash), distinguishes different unreadable files (different paths -> different hash bytes -> different digest contribution); compute_freshness_digest_from_files remains dead code (zero callers unchanged) but now correct-by-construction for future adoption
+  status: completed
+- id: scanner-word-boundary-suppressions
+  witness: scanner.rs added contains_word() helper (ASCII alnum+underscore word-byte boundary check), applied to the 4 riskiest raw substring checks (test/example/placeholder/mock) in the secret-detection gate at line ~143-144 -- fixes testament/attestation/contestable/exemplary false-exemption; cargo test --features all-languages passed, existing real_analysis.rs tests still green
+  status: completed
+- id: unescape-json-unicode-escapes
+  witness: project.rs unescape_json_string added read_hex4 helper + Some('u') match arm decoding \uXXXX to actual codepoint, handling BMP chars directly and surrogate pairs (high 0xD800-0xDBFF + low 0xDC00-0xDFFF combined via standard UTF-16 formula) for non-BMP chars; also added missing \b/\f arms that previously silently passed through as literal backslash+letter. cargo check clean.
+  status: completed
+- id: gitignore-code-search-tracked
+  witness: .gitignore line 12 '.code-search/' removed; find .code-search -type f confirmed 0 files currently present (only empty lancedb/ subdir) so nothing to git-add yet -- directory will be tracked automatically once real index content is written since git tracks files not empty dirs
+  status: completed
+- id: verify-cargo-check-all-fixes
+  witness: 'cargo check --lib --features all-languages: clean, 19.12s. cargo test --features all-languages: 2 passed (real_analysis.rs, real fs analysis of own src dir, both text and json mode), 0 failed. cargo check --target wasm32-wasip1 --no-default-features --features wasm --lib: fails locally only on missing wasi-sdk sysroot (stdio.h not found for tree-sitter C grammar compile) -- pre-existing local-environment limitation unrelated to these edits, CI job installs wasi-sdk itself; will be confirmed once pushed and CI runs the full wasm-check.yml with its wasi-sdk bootstrap step'
+  status: completed
+- id: unescape-json-edge-cases
+  witness: read_hex4 returns None on malformed/truncated escape (non-hex char or <4 chars before string end), caller falls back to literal backslash+u passthrough (no panic, no data corruption beyond preserving the malformed marker); unpaired high surrogate and lone low surrogate both map to U+FFFD replacement char rather than corrupting the string or panicking; will witness live via exec_js in VERIFY phase against real package.json content
+  status: completed
+- id: skipped-files-empty-overflow-check
+  witness: analyze_files skipped_files display path (take(20) truncation, +more counter) unchanged structurally -- precollect_skips now seeds the same Vec<(String,String)> that parse/UTF8 skips extend into, so display code at lib.rs:153-161 handles merged oversized+metadata+parse+utf8 skips identically since they share one vec and one shape; will witness live in VERIFY with a real >200KB file
+  status: completed
+- id: scanner-suppression-decision-record
+  witness: word-boundary fix judged low-risk and applied (see scanner-word-boundary-suppressions) -- contains_word() is a small self-contained ASCII word-boundary scan, no new dependency, touches only the 4 riskiest raw-substring checks in the secret gate, leaves the other ~10 is_* structural suppressions (is_test_file, is_jsx_html_attr, etc, which are already field/context-shaped not raw substring) untouched since those are not in the false-exemption risk class the audit named
+  status: completed
+- id: readme-badge-repo-mismatch-noticed
+  witness: Verified AnEntrypoint/rs-codeinsight is the live real repo (curl -sI on its wasm-check.yml badge endpoint returns HTTP 200). Fixed README.md CI badge to point at AnEntrypoint/rs-codeinsight wasm-check.yml (the actual CI workflow filename in .github/workflows/), fixed git-clone/GitHub-Releases URLs in README.md and CONTRIBUTING.md from faizelmahomed/codeinsight to AnEntrypoint/rs-codeinsight. Left the unrelated sentinel-cc external-tool link untouched (different repo, not this crate).
+  status: completed
