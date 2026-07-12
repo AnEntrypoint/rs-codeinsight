@@ -40,10 +40,6 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     analyze_files(root, options, files, Some(all_files), collect_skips)
 }
 
-pub fn analyze_with_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>) -> AnalysisOutput {
-    analyze_files(root, options, files, None, Vec::new())
-}
-
 fn filter_supported(all_files: &[(String, String)]) -> Vec<(String, String, String)> {
     all_files
         .iter()
@@ -163,10 +159,6 @@ fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, Strin
     AnalysisOutput { text, skipped_files }
 }
 
-pub fn collect_files(root: &Path, config: &config::Config) -> Vec<(String, String, String)> {
-    filter_supported(&collect_all_files(root, config).0)
-}
-
 pub fn collect_all_files(root: &Path, config: &config::Config) -> (Vec<(String, String)>, Vec<(String, String)>) {
     let mut files = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
@@ -232,52 +224,3 @@ pub fn matches_ignore_pattern(file_name: &str, patterns: &[String]) -> bool {
     false
 }
 
-pub fn compute_freshness_digest(root: &Path) -> String {
-    let cfg = config::load_config(root);
-    let files: Vec<(String, String, String)> = collect_all_files(root, &cfg)
-        .0
-        .into_iter()
-        .map(|(rel, abs)| (rel, abs, String::new()))
-        .collect();
-    compute_freshness_digest_from_files(root, &files)
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut hex = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        hex.push(HEX[(b >> 4) as usize] as char);
-        hex.push(HEX[(b & 0x0f) as usize] as char);
-    }
-    hex
-}
-
-fn file_content_hash(abs: &str) -> [u8; 16] {
-    use md5::{Digest, Md5};
-    let mut hasher = Md5::new();
-    match fs::read(abs) {
-        Ok(bytes) => hasher.update(&bytes),
-        Err(_) => {
-            hasher.update(b"__unreadable__:");
-            hasher.update(abs.as_bytes());
-        }
-    }
-    hasher.finalize().into()
-}
-
-pub fn compute_freshness_digest_from_files(_root: &Path, files: &[(String, String, String)]) -> String {
-    use md5::{Digest, Md5};
-    let mut sorted: Vec<(String, [u8; 16])> = files.par_iter().map(|(rel, abs, _)| {
-        (rel.clone(), file_content_hash(abs))
-    }).collect();
-    sorted.sort_by(|a, b| a.0.cmp(&b.0));
-    let mut hasher = Md5::new();
-    for (rel, content_hash) in &sorted {
-        hasher.update(rel.as_bytes());
-        hasher.update(b"|");
-        hasher.update(content_hash);
-        hasher.update(b"\n");
-    }
-    let result = hasher.finalize();
-    format!("v2:{}:files={}", hex_encode(&result), sorted.len())
-}
