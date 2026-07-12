@@ -4,9 +4,12 @@ Standalone Rust crate (`codeinsight`), published independently of the gm/rs-* or
 
 ## Project structure
 
+The crate builds two artifacts (see `Cargo.toml`): a library (`[lib]` `rs_codeinsight`, `cdylib`+`rlib`, root `src/lib.rs`) and a thin CLI binary (`[[bin]]` `codeinsight`, root `src/main.rs`). All analysis logic lives in the library; `main.rs` only parses CLI flags and calls the library's `analyze()`.
+
 ```
 src/
-  main.rs          - entry point, file collection, parallel dispatch, CLI flags
+  lib.rs           - library root: module declarations, file collection, parallel dispatch, analyze() entry
+  main.rs          - codeinsight CLI binary: flag parsing over the library's analyze()
   lang.rs          - tree-sitter grammar registry
   analyzer.rs      - AST traversal, entity extraction, convention counting
   depgraph.rs      - dependency graph, import resolution, dead code detection
