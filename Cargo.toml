@@ -13,7 +13,7 @@ categories = ["command-line-utilities", "development-tools"]
 [lib]
 name = "rs_codeinsight"
 path = "src/lib.rs"
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "codeinsight"
