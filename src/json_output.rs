@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use serde_json::Value;
 use crate::analyzer::FileAnalysis;
 use crate::conventions::LanguageConventions;
 use crate::depgraph::{DeadCode, DepGraph};
@@ -11,24 +12,8 @@ use crate::scanner::{ScanResults, TestMap};
 use crate::tooling::ToolingContext;
 use crate::formatter::AggregatedStats;
 
-fn json_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\t' => out.push_str("\\t"),
-            '\r' => out.push_str("\\r"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            _ => out.push(c),
-        }
-    }
-    out
-}
-
 fn json_str(s: &str) -> String {
-    format!("\"{}\"", json_escape(s))
+    Value::String(s.to_string()).to_string()
 }
 
 fn json_str_opt(s: &Option<String>) -> String {

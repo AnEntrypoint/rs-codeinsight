@@ -2,16 +2,13 @@
 // Renders site chrome via anentrypoint-design SDK using REAL SDK components.
 // theme.mjs emits HTML shell + bootstrap that consumes YAML baked into <script id="__site__">.
 // SDK provides ALL styling via installStyles(); plus a tiny inline body-margin reset.
+// escapeHtml/escapeJson come from the shared anentrypoint-design flatspace-theme
+// kit (same source rs-plugkit and gm's site/theme.mjs consume) instead of a
+// locally duplicated copy -- see anentrypoint-design/src/kits/flatspace-theme.
 
-const escapeHtml = (s) => String(s ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+import { escapeHtml, escapeJson, SDK_JS_URL } from 'anentrypoint-design/kits/flatspace-theme';
 
-const escapeJson = (obj) => JSON.stringify(obj)
-  .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
-  .replace(new RegExp('\\u2028', 'g'), '\\u2028').replace(new RegExp('\\u2029', 'g'), '\\u2029');
-
-const SDK_URL = 'https://unpkg.com/anentrypoint-design@latest/dist/247420.js';
+const SDK_URL = SDK_JS_URL;
 
 const clientScript = `
 import { h, applyDiff, installStyles, components as C } from 'anentrypoint-design';

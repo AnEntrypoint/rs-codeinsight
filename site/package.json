@@ -1,0 +1,7 @@
+{
+  "name": "rs-codeinsight-site",
+  "private": true,
+  "dependencies": {
+    "anentrypoint-design": "^0.0.355"
+  }
+}
