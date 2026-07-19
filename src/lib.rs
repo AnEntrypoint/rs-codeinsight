@@ -37,7 +37,7 @@ pub fn analyze(root: &Path, options: AnalyzeOptions) -> AnalysisOutput {
     let cfg = config::load_config(root);
     let (all_files, collect_skips) = collect_all_files(root, &cfg);
     let files = filter_supported(&all_files);
-    analyze_files(root, options, files, Some(all_files), collect_skips)
+    analyze_files(root, options, files, all_files, collect_skips)
 }
 
 fn filter_supported(all_files: &[(String, String)]) -> Vec<(String, String, String)> {
@@ -50,11 +50,9 @@ fn filter_supported(all_files: &[(String, String)]) -> Vec<(String, String, Stri
         .collect()
 }
 
-fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, all_files: Option<Vec<(String, String)>>, precollect_skips: Vec<(String, String)>) -> AnalysisOutput {
+fn analyze_files(root: &Path, options: AnalyzeOptions, files: Vec<(String, String, String)>, all_files: Vec<(String, String)>, precollect_skips: Vec<(String, String)>) -> AnalysisOutput {
     let all_rel_paths: Vec<String> = files.iter().map(|(r, _, _)| r.clone()).collect();
-    let data_layer_files: Vec<(String, String)> = all_files.unwrap_or_else(|| {
-        files.iter().map(|(r, a, _)| (r.clone(), a.clone())).collect()
-    });
+    let data_layer_files: Vec<(String, String)> = all_files;
 
     let outcomes: Vec<Result<(String, String, FileAnalysis, scanner::ScanResults), (String, String)>> = files
         .into_par_iter()
