@@ -315,7 +315,11 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
     }
     if kind.contains("async") {
         analysis.async_count += 1;
-    } else if node.parent().map_or(true, |p| p.start_byte() != node.start_byte()) {
+    } else if kind == "function_declaration"
+        || kind == "function_expression"
+        || kind == "arrow_function"
+        || kind == "method_definition"
+    {
         let text = node_text(node, source);
         if text.starts_with("async ") {
             analysis.async_count += 1;
