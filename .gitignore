@@ -44,3 +44,8 @@ dist/
 .gm/disciplines/rs-learn_graph_edges_by_dst/
 .gm/disciplines/rs-learn_graph_edges_by_src/
 .gm/disciplines/rs-learn_router/
+.gm/instructions-source-cache/
+.gm/config-source-cache/
+.gm/config-source-cache-default/
+.gm/config-source-cache-default.*.sync.json
+.gm/config-source-cache.*.sync.json
