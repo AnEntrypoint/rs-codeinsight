@@ -1,1 +1,0 @@
-long-gap-no-instruction: {gap_ms}ms since last `instruction` dispatch (threshold 300000ms). Idle mid-chain is a deviation. Dispatch `instruction` for recovery prose before any other verb.
