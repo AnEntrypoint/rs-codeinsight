@@ -58,10 +58,6 @@ r = ["dep:tree-sitter-r"]
 julia = ["dep:tree-sitter-julia"]
 swift = ["dep:tree-sitter-swift"]
 
-[[test]]
-name = "real_analysis"
-required-features = ["rust"]
-
 [dependencies]
 tree-sitter = "0.24"
 tree-sitter-javascript = { version = "0.25", optional = true }
