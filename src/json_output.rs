@@ -1,0 +1,226 @@
+use std::collections::HashMap;
+use serde_json::Value;
+use crate::analyzer::FileAnalysis;
+use crate::conventions::LanguageConventions;
+use crate::depgraph::{DeadCode, DepGraph};
+use crate::git::GitContext;
+use crate::lang::{lang_abbrev, NODE_BUILTINS};
+use crate::locations::KeyLocations;
+use crate::models::DataLayer;
+use crate::project::ProjectContext;
+use crate::scanner::{ScanResults, TestMap};
+use crate::tooling::ToolingContext;
+use crate::formatter::AggregatedStats;
+
+fn json_str(s: &str) -> String {
+    Value::String(s.to_string()).to_string()
+}
+
+fn json_str_opt(s: &Option<String>) -> String {
+    match s {
+        Some(v) => json_str(v),
+        None => "null".to_string(),
+    }
+}
+
+fn json_str_array(items: &[String]) -> String {
+    let parts: Vec<String> = items.iter().map(|s| json_str(s)).collect();
+    format!("[{}]", parts.join(", "))
+}
+
+pub fn format_json(
+    stats: &AggregatedStats,
+    file_metrics: &HashMap<String, FileAnalysis>,
+    dep_graph: &DepGraph,
+    dead_code: &DeadCode,
+    duplicates: &[(String, Vec<(String, String)>)],
+    project: &ProjectContext,
+    git: &GitContext,
+    _tooling: &ToolingContext,
+    scans: &ScanResults,
+    test_map: &TestMap,
+    data_layer: &DataLayer,
+    key_locations: &KeyLocations,
+    conventions: &[LanguageConventions],
+    skipped_files: &[(String, String)],
+) -> String {
+    let mut out = String::with_capacity(8192);
+    out.push_str("{\n");
+
+    out.push_str("  \"project\": {\n");
+    out.push_str(&format!("    \"name\": {},\n", json_str_opt(&project.name)));
+    out.push_str(&format!("    \"version\": {},\n", json_str_opt(&project.version)));
+    out.push_str(&format!("    \"type\": {},\n", json_str(&project.project_type)));
+    out.push_str(&format!("    \"description\": {},\n", json_str_opt(&project.description)));
+    out.push_str(&format!("    \"about\": {}\n", json_str_opt(&project.readme_excerpt)));
+    out.push_str("  },\n");
+
+    let stack_parts = crate::formatter::detect_stack(project, dep_graph, data_layer);
+    out.push_str(&format!("  \"stack\": {},\n", json_str_array(&stack_parts)));
+
+    let total_functions: u32 = stats.by_language.values().map(|l| l.functions).sum();
+    let total_classes: u32 = stats.by_language.values().map(|l| l.classes).sum();
+    let total_complexity: u32 = stats.by_language.values().map(|l| l.complexity).sum();
+    let avg_complexity = if total_functions > 0 {
+        (total_complexity as f64 / total_functions as f64 * 10.0).round() / 10.0
+    } else {
+        0.0
+    };
+    out.push_str("  \"stats\": {\n");
+    out.push_str(&format!("    \"files\": {},\n", stats.files));
+    out.push_str(&format!("    \"lines\": {},\n", stats.total_lines));
+    out.push_str(&format!("    \"functions\": {},\n", total_functions));
+    out.push_str(&format!("    \"classes\": {},\n", total_classes));
+    out.push_str(&format!("    \"complexity\": {:.1}\n", avg_complexity));
+    out.push_str("  },\n");
+
+    let mut langs: Vec<_> = stats.by_language.iter().collect();
+    langs.sort_by(|a, b| b.1.lines.cmp(&a.1.lines));
+    out.push_str("  \"languages\": {");
+    let lang_entries: Vec<String> = langs.iter().map(|(name, data)| {
+        let pct = if stats.total_lines > 0 {
+            (data.lines as f64 / stats.total_lines as f64 * 100.0) as u32
+        } else { 0 };
+        format!("{}: {}", json_str(lang_abbrev(name)), pct)
+    }).collect();
+    out.push_str(&lang_entries.join(", "));
+    out.push_str("},\n");
+
+    out.push_str("  \"scripts\": {");
+    let mut script_entries: Vec<String> = Vec::new();
+    for key in &["dev", "start", "run", "build", "test"] {
+        if let Some(val) = project.scripts.get(*key) {
+            script_entries.push(format!("{}: {}", json_str(key), json_str(val)));
+        }
+    }
+    out.push_str(&script_entries.join(", "));
+    out.push_str("},\n");
+
+    let all_env = crate::formatter::collect_env(file_metrics);
+    out.push_str(&format!("  \"env\": {},\n", json_str_array(&all_env)));
+
+    let all_routes = crate::formatter::collect_routes(file_metrics);
+    out.push_str(&format!("  \"routes\": {},\n", json_str_array(&all_routes)));
+
+    out.push_str("  \"models\": {\n");
+    out.push_str(&format!("    \"names\": {},\n", json_str_array(&data_layer.model_names)));
+    out.push_str(&format!("    \"orm\": {},\n", json_str_opt(&data_layer.orm)));
+    out.push_str(&format!("    \"schema\": {}\n", json_str_array(&data_layer.schema_files)));
+    out.push_str("  },\n");
+
+    out.push_str("  \"dirs\": [");
+    let dir_entries: Vec<String> = key_locations.locations.iter()
+        .filter(|l| l.count >= 2)
+        .map(|l| format!("{{\"path\": {}, \"count\": {}}}", json_str(&l.path), l.count))
+        .collect();
+    out.push_str(&dir_entries.join(", "));
+    out.push_str("],\n");
+
+    out.push_str("  \"git\": {\n");
+    out.push_str(&format!("    \"branch\": {},\n", json_str_opt(&git.branch)));
+    out.push_str(&format!("    \"uncommitted\": {},\n", git.uncommitted.len()));
+    out.push_str("    \"hot\": [");
+    let hot_entries: Vec<String> = git.hot_files.iter().map(|(f, c)| {
+        format!("{{\"file\": {}, \"count\": {}}}", json_str(f), c)
+    }).collect();
+    out.push_str(&hot_entries.join(", "));
+    out.push_str("]\n");
+    out.push_str("  },\n");
+
+    out.push_str("  \"todos\": [");
+    let mut todo_entries: Vec<String> = Vec::new();
+    for n in &scans.todos {
+        todo_entries.push(format!(
+            "{{\"kind\": \"TODO\", \"file\": {}, \"line\": {}, \"text\": {}}}",
+            json_str(&n.file), n.line, json_str(&n.text)
+        ));
+    }
+    for n in &scans.fixmes {
+        todo_entries.push(format!(
+            "{{\"kind\": \"FIXME\", \"file\": {}, \"line\": {}, \"text\": {}}}",
+            json_str(&n.file), n.line, json_str(&n.text)
+        ));
+    }
+    for n in &scans.hacks {
+        todo_entries.push(format!(
+            "{{\"kind\": \"HACK\", \"file\": {}, \"line\": {}, \"text\": {}}}",
+            json_str(&n.file), n.line, json_str(&n.text)
+        ));
+    }
+    out.push_str(&todo_entries.join(", "));
+    out.push_str("],\n");
+
+    let test_pct = if test_map.source_count > 0 {
+        (test_map.test_count as f64 / test_map.source_count as f64 * 100.0) as u32
+    } else { 0 };
+    out.push_str("  \"tests\": {\n");
+    out.push_str(&format!("    \"count\": {},\n", test_map.test_count));
+    out.push_str(&format!("    \"total\": {},\n", test_map.source_count));
+    out.push_str(&format!("    \"coverage\": {}\n", test_pct));
+    out.push_str("  },\n");
+
+    let mut ext_deps: Vec<_> = dep_graph.external_imports.iter()
+        .filter(|(k, _)| !NODE_BUILTINS.contains(&k.as_str()))
+        .filter(|(k, _)| !k.starts_with("@/") && !k.starts_with("./") && !k.starts_with("../"))
+        .collect();
+    ext_deps.sort_by(|a, b| b.1.cmp(a.1));
+    out.push_str("  \"deps\": [");
+    let dep_entries: Vec<String> = ext_deps.iter().take(10).map(|(k, v)| {
+        format!("{{\"name\": {}, \"count\": {}}}", json_str(k), v)
+    }).collect();
+    out.push_str(&dep_entries.join(", "));
+    out.push_str("],\n");
+
+    out.push_str("  \"security\": [");
+    let sec_entries: Vec<String> = scans.security.iter().map(|issue| {
+        format!(
+            "{{\"kind\": {}, \"file\": {}, \"line\": {}}}",
+            json_str(&issue.kind), json_str(&issue.file), issue.line
+        )
+    }).collect();
+    out.push_str(&sec_entries.join(", "));
+    out.push_str("],\n");
+
+    let large = file_metrics.values().filter(|a| a.stats.lines > 500).count();
+    let complex_fns: usize = file_metrics.values()
+        .flat_map(|a| a.func_names.iter())
+        .filter(|f| f.lines > 50)
+        .count();
+    out.push_str("  \"issues\": {\n");
+    out.push_str(&format!("    \"orphaned\": {},\n", dead_code.orphaned_files.len()));
+    out.push_str(&format!("    \"unused_exports\": {},\n", dead_code.unused_exports.len()));
+    out.push_str(&format!("    \"single_use\": {},\n", dead_code.possibly_dead.len()));
+    out.push_str(&format!("    \"large_files\": {},\n", large));
+    out.push_str(&format!("    \"complex_fns\": {},\n", complex_fns));
+    out.push_str(&format!("    \"duplicated\": {}\n", duplicates.len()));
+    out.push_str("  },\n");
+
+    let mut exported_fns: Vec<String> = Vec::new();
+    for (path, analysis) in file_metrics {
+        for func in &analysis.func_names {
+            if analysis.exported_names.contains(&func.name) {
+                let fname = path.rsplit('/').next().unwrap_or(path);
+                exported_fns.push(format!("{}:{}:{}", fname, func.start_line, func.name));
+            }
+        }
+    }
+    out.push_str(&format!("  \"exports\": {},\n", json_str_array(&exported_fns)));
+
+    out.push_str("  \"conventions\": {");
+    let conv_entries: Vec<String> = conventions.iter().map(|c| {
+        format!("{}: {}", json_str(&c.language), json_str_array(&c.conventions))
+    }).collect();
+    out.push_str(&conv_entries.join(", "));
+    out.push_str("},\n");
+
+    let skipped_entries: Vec<String> = skipped_files.iter().map(|(path, reason)| {
+        format!("{{\"path\": {}, \"reason\": {}}}", json_str(path), json_str(reason))
+    }).collect();
+    out.push_str(&format!("  \"skipped_count\": {},\n", skipped_files.len()));
+    out.push_str("  \"skipped\": [");
+    out.push_str(&skipped_entries.join(", "));
+    out.push_str("]\n");
+
+    out.push_str("}\n");
+    out
+}

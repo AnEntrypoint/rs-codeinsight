@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "rs-codeinsight-site",
+      "dependencies": {
+        "anentrypoint-design": "^0.0.355",
+      },
+    },
+  },
+  "packages": {
+    "anentrypoint-design": ["anentrypoint-design@0.0.355", "", {}, "sha512-wYMLN+AAMWDRs/Ud8CLOGh40jQthGwlTaevDOvI3DKzjiWuNgBt7Fqz497qp7DM74+gMN+uOdUDk8fxnr75G5A=="],
+  }
+}
