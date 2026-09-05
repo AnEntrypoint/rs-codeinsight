@@ -86,7 +86,7 @@ pub fn format_compact(
     out.push_str("*Legend: f=files L=lines fn=functions cls=classes cx=avg-complexity | file:line:name(NL)=location Np=params | ^N=imports-from vN=imported-by (N)=occurrences (+N)=more | circular isolated complex duplicated large*\n\n");
 
     let mut langs: Vec<_> = stats.by_language.iter().collect();
-    langs.sort_by(|a, b| b.1.lines.cmp(&a.1.lines));
+    langs.sort_by(|a, b| b.1.lines.cmp(&a.1.lines).then_with(|| a.0.cmp(b.0)));
     let lang_str: Vec<String> = langs.iter().take(4).map(|(name, data)| {
         let pct = if stats.total_lines > 0 { (data.lines as f64 / stats.total_lines as f64 * 100.0) as u32 } else { 0 };
         format!("{}:{}%", lang_abbrev(name), pct)
@@ -103,11 +103,11 @@ pub fn format_compact(
     }
     let noise: &[&str] = &["console.log","console.error","console.warn","process.exit","JSON.stringify","JSON.parse","require","path.join","path.resolve","parseInt","parseFloat","Object.keys","Object.entries","Object.assign","Array.from","String","Number","Boolean"];
     let mut sorted_patterns: Vec<_> = all_patterns.iter().filter(|(k, _)| !noise.contains(&k.as_str())).collect();
-    sorted_patterns.sort_by(|a, b| b.1.cmp(a.1));
+    sorted_patterns.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
     let mut sorted_ids: Vec<_> = all_identifiers.iter()
         .filter(|(k, _)| k.len() >= 3 && k.len() <= 25)
         .collect();
-    sorted_ids.sort_by(|a, b| b.1.cmp(a.1));
+    sorted_ids.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
 
     let has_stack = !stack_parts.is_empty() || !sorted_patterns.is_empty() || !sorted_ids.is_empty();
     if has_stack {
@@ -137,7 +137,7 @@ pub fn format_compact(
         for (k, v) in &a.call_patterns { *all_calls.entry(k.clone()).or_default() += v; }
     }
     let mut sorted_calls: Vec<_> = all_calls.iter().filter(|(k, _)| !noise.contains(&k.as_str())).collect();
-    sorted_calls.sort_by(|a, b| b.1.cmp(a.1));
+    sorted_calls.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
 
     let has_code_patterns = total_async > 0 || total_try > 0 || !sorted_calls.is_empty();
     if has_code_patterns {
@@ -204,7 +204,7 @@ pub fn format_compact(
             .filter(|(p, l)| *l >= 200 && !p.ends_with(".json") && !p.ends_with(".lock") && !p.ends_with("-lock.json"))
             .filter(|(p, l)| seen.insert((p.rsplit('/').next().unwrap_or(p).to_string(), *l)))
             .collect();
-        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         v
     };
 
@@ -230,8 +230,9 @@ pub fn format_compact(
             }
         }
     }
-    long_fns.sort_by(|a, b| b.3.cmp(&a.3));
-    many_param_fns.sort_by(|a, b| b.3.cmp(&a.3));
+    long_fns.sort_by(|a, b| b.3.cmp(&a.3).then_with(|| (&a.0, &a.2).cmp(&(&b.0, &b.2))));
+    many_param_fns.sort_by(|a, b| b.3.cmp(&a.3).then_with(|| (&a.0, &a.2).cmp(&(&b.0, &b.2))));
+    all_classes.sort_by(|a, b| (&a.0, &a.2).cmp(&(&b.0, &b.2)));
 
     let has_org = !large_files.is_empty() || !long_fns.is_empty() || !many_param_fns.is_empty() || !all_classes.is_empty();
     if has_org {
@@ -268,7 +269,7 @@ pub fn format_compact(
         let mut connections: Vec<(&String, u32, u32)> = dep_graph.coupling.iter()
             .map(|(f, (in_n, out_n))| (f, *out_n, *in_n))
             .collect();
-        connections.sort_by(|a, b| (b.1 + b.2).cmp(&(a.1 + a.2)));
+        connections.sort_by(|a, b| (b.1 + b.2).cmp(&(a.1 + a.2)).then_with(|| a.0.cmp(b.0)));
 
         fn fname(p: &str) -> &str { p.rsplit('/').next().unwrap_or(p).split('.').next().unwrap_or(p) }
 
@@ -318,7 +319,7 @@ pub fn format_compact(
             .filter(|(k, _)| !NODE_BUILTINS.contains(&k.as_str()))
             .filter(|(k, _)| !k.starts_with("@/") && !k.starts_with("./") && !k.starts_with("../"))
             .collect();
-        ext_deps.sort_by(|a, b| b.1.cmp(a.1));
+        ext_deps.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
         if !ext_deps.is_empty() {
             let s: Vec<String> = ext_deps.iter().take(6).map(|(k, _)| k.to_string()).collect();
             let _ = writeln!(out, "**External:** {}", s.join(", "));
@@ -335,9 +336,14 @@ pub fn format_compact(
             }
         }
     }
-    let entry_pts: Vec<String> = dep_graph.entry_points.iter().take(5)
-        .map(|e| e.rsplit('/').next().unwrap_or(e).split('.').next().unwrap_or(e).to_string())
-        .collect();
+    exported_fns.sort();
+    let entry_pts: Vec<String> = {
+        let mut sorted: Vec<&String> = dep_graph.entry_points.iter().collect();
+        sorted.sort();
+        sorted.into_iter().take(5)
+            .map(|e| e.rsplit('/').next().unwrap_or(e).split('.').next().unwrap_or(e).to_string())
+            .collect()
+    };
     let has_api = !exported_fns.is_empty() || !all_classes.is_empty() || !entry_pts.is_empty();
     if has_api {
         out.push_str("## API Surface\n\n");
@@ -370,7 +376,7 @@ pub fn format_compact(
                 if f.lines > 100 && seen.insert(key) { v.push((fname.clone(), f.start_line, f.name.clone(), f.lines)); }
             }
         }
-        v.sort_by(|a, b| b.3.cmp(&a.3));
+        v.sort_by(|a, b| b.3.cmp(&a.3).then_with(|| (&a.0, &a.2).cmp(&(&b.0, &b.2))));
         v
     };
     if !complex_fns.is_empty() {
@@ -380,10 +386,12 @@ pub fn format_compact(
     }
     let lf: Vec<_> = {
         let mut seen: std::collections::HashSet<(String, u32)> = std::collections::HashSet::new();
-        file_metrics.iter()
+        let mut v: Vec<_> = file_metrics.iter()
             .filter(|(p, a)| a.stats.lines > 500 && !p.ends_with(".json") && !p.ends_with(".lock"))
             .filter(|(p, a)| seen.insert((p.rsplit('/').next().unwrap_or(p).to_string(), a.stats.lines)))
-            .collect()
+            .collect();
+        v.sort_by(|a, b| b.1.stats.lines.cmp(&a.1.stats.lines).then_with(|| a.0.cmp(b.0)));
+        v
     };
     if !lf.is_empty() {
         let list: Vec<String> = lf.iter().take(3).map(|(p, a)| {
@@ -401,7 +409,7 @@ pub fn format_compact(
         issues.push(format!("{} duplicated groups", duplicates.len()));
     }
     if !scans.security.is_empty() {
-        let mut by_kind: HashMap<&str, std::collections::BTreeSet<String>> = HashMap::new();
+        let mut by_kind: std::collections::BTreeMap<&str, std::collections::BTreeSet<String>> = std::collections::BTreeMap::new();
         for issue in &scans.security {
             let f = issue.file.rsplit('/').next().unwrap_or(&issue.file);
             by_kind.entry(&issue.kind).or_default().insert(format!("{f}:{}", issue.line));
@@ -423,8 +431,12 @@ pub fn format_compact(
     if has_dead {
         out.push_str("## Dead Code & Tests\n\n");
         if !dead_code.orphaned_files.is_empty() {
-            let list: Vec<&str> = dead_code.orphaned_files.iter().take(6)
-                .map(|f| f.rsplit('/').next().unwrap_or(f.as_str())).collect();
+            let list: Vec<&str> = {
+                let mut sorted: Vec<&String> = dead_code.orphaned_files.iter().collect();
+                sorted.sort();
+                sorted.into_iter().take(6)
+                    .map(|f| f.rsplit('/').next().unwrap_or(f.as_str())).collect()
+            };
             let more = if dead_code.orphaned_files.len() > 6 { format!(" (+{})", dead_code.orphaned_files.len() - 6) } else { String::new() };
             let _ = writeln!(out, "**Orphaned:** {}{more}", list.join(", "));
         }
@@ -466,7 +478,7 @@ pub fn format_compact(
 
     if stats.files >= 5 && !dep_graph.modules.is_empty() {
         let mut mods: Vec<_> = dep_graph.modules.iter().collect();
-        mods.sort_by(|a, b| b.1.connections.cmp(&a.1.connections));
+        mods.sort_by(|a, b| b.1.connections.cmp(&a.1.connections).then_with(|| a.0.cmp(b.0)));
         let mods: Vec<_> = mods.into_iter().take(6).collect();
         if !mods.is_empty() {
             out.push_str("## Modules\n\n");
@@ -519,7 +531,7 @@ pub fn format_compact(
                 *deduped.entry(base).or_default() += c;
             }
             let mut hot: Vec<_> = deduped.iter().collect();
-            hot.sort_by(|a, b| b.1.cmp(a.1));
+            hot.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
             let hot_str: Vec<String> = hot.iter().take(6).map(|(f, c)| format!("{f}({c})")).collect();
             meta.push(format!("Hot: {}", hot_str.join(", ")));
         }

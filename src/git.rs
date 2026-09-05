@@ -26,14 +26,15 @@ pub fn analyze_git(root: &Path) -> GitContext {
     }
     ctx.is_repo = true;
 
-    ctx.branch = run_git(root, &["rev-parse", "--abbrev-ref", "HEAD"])
-        .map(|s| s.trim().to_string());
+    let (branch_out, log_out, status_out, shortlog_out) = spawn_git_concurrently(root);
 
-    if let Some(log) = run_git(root, &["log", "--oneline", "-5", "--no-decorate"]) {
+    ctx.branch = branch_out.map(|s| s.trim().to_string());
+
+    if let Some(log) = log_out {
         ctx.recent_commits = log.lines().map(|l| l.to_string()).collect();
     }
 
-    if let Some(status) = run_git(root, &["status", "--porcelain", "--short"]) {
+    if let Some(status) = status_out {
         ctx.uncommitted = status
             .lines()
             .filter(|l| !l.is_empty())
@@ -41,10 +42,7 @@ pub fn analyze_git(root: &Path) -> GitContext {
             .collect();
     }
 
-    if let Some(shortlog) = run_git(
-        root,
-        &["log", "--format=%H", "--diff-filter=AMD", "--name-only", "-100", "--no-decorate"],
-    ) {
+    if let Some(shortlog) = shortlog_out {
         let mut file_counts: HashMap<String, u32> = HashMap::new();
         for line in shortlog.lines() {
             let trimmed = line.trim();
@@ -55,7 +53,7 @@ pub fn analyze_git(root: &Path) -> GitContext {
             *file_counts.entry(trimmed.to_string()).or_insert(0) += 1;
         }
         let mut sorted: Vec<_> = file_counts.into_iter().collect();
-        sorted.sort_by(|a, b| b.1.cmp(&a.1));
+        sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         ctx.hot_files = sorted.into_iter().take(8).collect();
     }
 
@@ -80,19 +78,48 @@ fn parse_porcelain_line(line: &str) -> String {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn run_git(root: &Path, args: &[&str]) -> Option<String> {
+const GIT_QUERIES: [&[&str]; 4] = [
+    &["rev-parse", "--abbrev-ref", "HEAD"],
+    &["log", "--oneline", "-5", "--no-decorate"],
+    &["status", "--porcelain", "--short"],
+    &["log", "--format=%H", "--diff-filter=AMD", "--name-only", "-100", "--no-decorate"],
+];
+
+#[cfg(not(target_arch = "wasm32"))]
+fn spawn_git_concurrently(
+    root: &Path,
+) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+    let children: Vec<Option<std::process::Child>> = GIT_QUERIES
+        .iter()
+        .map(|args| spawn_git(root, args))
+        .collect();
+
+    let mut outputs = children.into_iter().map(|child| {
+        let output = child?.wait_with_output().ok()?;
+        output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+    });
+
+    let branch = outputs.next().flatten();
+    let log = outputs.next().flatten();
+    let status = outputs.next().flatten();
+    let shortlog = outputs.next().flatten();
+    (branch, log, status, shortlog)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn spawn_git(root: &Path, args: &[&str]) -> Option<std::process::Child> {
     let mut cmd = Command::new("git");
-    cmd.args(args).current_dir(root);
+    cmd.args(args)
+        .current_dir(root)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000);
     }
-    let output = cmd.output().ok()?;
-
-    if output.status.success() {
-        Some(String::from_utf8_lossy(&output.stdout).to_string())
-    } else {
-        None
-    }
+    cmd.spawn().ok()
 }
