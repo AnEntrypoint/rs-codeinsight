@@ -1,14 +1,3 @@
-//! `codeinsight` CLI — thin front-end over the library's `analyze()` entry.
-//!
-//! Usage: codeinsight [PATH] [--json]
-//!   PATH    directory to analyze (default: current directory)
-//!   --json  emit the machine-readable JSON report instead of the compact text
-//!
-//! Language grammars are feature-gated in the library; build with the
-//! `all-languages` feature (or a specific language feature) for the binary to
-//! parse anything. With no language feature the analyzer still runs but skips
-//! every file as unsupported.
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 

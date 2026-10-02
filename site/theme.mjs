@@ -1,11 +1,3 @@
-// AnEntrypoint design-system theme for flatspace.
-// Renders site chrome via anentrypoint-design SDK using REAL SDK components.
-// theme.mjs emits HTML shell + bootstrap that consumes YAML baked into <script id="__site__">.
-// SDK provides ALL styling via installStyles(); plus a tiny inline body-margin reset.
-// escapeHtml/escapeJson come from the shared anentrypoint-design flatspace-theme
-// kit (same source rs-plugkit and gm's site/theme.mjs consume) instead of a
-// locally duplicated copy -- see anentrypoint-design/src/kits/flatspace-theme.
-
 import { escapeHtml, escapeJson, SDK_JS_URL } from 'anentrypoint-design/kits/flatspace-theme';
 
 const SDK_URL = SDK_JS_URL;

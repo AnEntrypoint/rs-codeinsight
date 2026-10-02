@@ -18,8 +18,6 @@ crate-type = ["cdylib", "rlib"]
 [[bin]]
 name = "codeinsight"
 path = "src/main.rs"
-# Build with a language feature for the binary to parse anything, e.g.:
-#   cargo install rs-codeinsight --features all-languages
 
 [features]
 default = []
