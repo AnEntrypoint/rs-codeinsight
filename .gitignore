@@ -50,5 +50,4 @@ dist/
 .gm/config-source-cache-default/
 .gm/config-source-cache-default.*.sync.json
 .gm/config-source-cache.*.sync.json
-config.bat
 node_modules
