@@ -163,10 +163,11 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
             }
         }
     }
-    'readme: for dir in &readme_dirs {
-        for name in &["README.md", "readme.md", "README.txt", "README"] {
-            let readme_path = dir.join(name);
-            if let Ok(content) = fs::read_to_string(&readme_path) {
+    let readme_excerpt = readme_dirs.iter().find_map(|dir| {
+        ["README.md", "readme.md", "README.txt", "README"]
+            .iter()
+            .find_map(|name| {
+                let content = fs::read_to_string(dir.join(name)).ok()?;
                 let excerpt: String = content
                     .split("\n\n")
                     .take(2)
@@ -178,12 +179,11 @@ pub fn analyze_project(root: &Path) -> ProjectContext {
                     .take(300)
                     .collect();
                 let trimmed = excerpt.trim().to_string();
-                if !trimmed.is_empty() {
-                    ctx.readme_excerpt = Some(trimmed);
-                    break 'readme;
-                }
-            }
-        }
+                (!trimmed.is_empty()).then_some(trimmed)
+            })
+    });
+    if let Some(excerpt) = readme_excerpt {
+        ctx.readme_excerpt = Some(excerpt);
     }
 
     if root.join("yarn.lock").exists() {

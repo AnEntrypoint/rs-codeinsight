@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install site dependencies
+        working-directory: site
+        run: npm install --no-audit --no-fund
       - name: Build with flatspace
         run: npx --yes flatspace@latest build
       - uses: actions/configure-pages@v5

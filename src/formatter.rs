@@ -409,13 +409,13 @@ pub fn format_compact(
         issues.push(format!("{} duplicated groups", duplicates.len()));
     }
     if !scans.security.is_empty() {
-        let mut by_kind: std::collections::BTreeMap<&str, std::collections::BTreeSet<String>> = std::collections::BTreeMap::new();
+        let mut by_kind: std::collections::BTreeMap<crate::scanner::SecurityKind, std::collections::BTreeSet<String>> = std::collections::BTreeMap::new();
         for issue in &scans.security {
             let f = issue.file.rsplit('/').next().unwrap_or(&issue.file);
-            by_kind.entry(&issue.kind).or_default().insert(format!("{f}:{}", issue.line));
+            by_kind.entry(issue.kind).or_default().insert(format!("{f}:{}", issue.line));
         }
         for (kind, locs) in &by_kind {
-            let label = match *kind { "eval" => "eval()", "secret" => "hardcoded secrets", "sql_injection" => "SQL injection", _ => kind };
+            let label = kind.label();
             let list: Vec<&String> = locs.iter().take(6).collect();
             let more = if locs.len() > 6 { format!(" (+{})", locs.len() - 6) } else { String::new() };
             issues.push(format!("{label} in {}{more}", list.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));

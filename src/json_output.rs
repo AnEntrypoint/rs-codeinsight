@@ -129,22 +129,10 @@ pub fn format_json(
 
     out.push_str("  \"todos\": [");
     let mut todo_entries: Vec<String> = Vec::new();
-    for n in &scans.todos {
+    for n in scans.todos.iter().chain(&scans.fixmes).chain(&scans.hacks) {
         todo_entries.push(format!(
-            "{{\"kind\": \"TODO\", \"file\": {}, \"line\": {}, \"text\": {}}}",
-            json_str(&n.file), n.line, json_str(&n.text)
-        ));
-    }
-    for n in &scans.fixmes {
-        todo_entries.push(format!(
-            "{{\"kind\": \"FIXME\", \"file\": {}, \"line\": {}, \"text\": {}}}",
-            json_str(&n.file), n.line, json_str(&n.text)
-        ));
-    }
-    for n in &scans.hacks {
-        todo_entries.push(format!(
-            "{{\"kind\": \"HACK\", \"file\": {}, \"line\": {}, \"text\": {}}}",
-            json_str(&n.file), n.line, json_str(&n.text)
+            "{{\"kind\": {}, \"file\": {}, \"line\": {}, \"text\": {}}}",
+            json_str(n.kind.as_str()), json_str(&n.file), n.line, json_str(&n.text)
         ));
     }
     out.push_str(&todo_entries.join(", "));
@@ -175,7 +163,7 @@ pub fn format_json(
     let sec_entries: Vec<String> = scans.security.iter().map(|issue| {
         format!(
             "{{\"kind\": {}, \"file\": {}, \"line\": {}}}",
-            json_str(&issue.kind), json_str(&issue.file), issue.line
+            json_str(issue.kind.as_str()), json_str(&issue.file), issue.line
         )
     }).collect();
     out.push_str(&sec_entries.join(", "));

@@ -136,6 +136,7 @@ jobs:
             gh release create "v$VER" \
               --repo AnEntrypoint/plugkit-bin \
               --title "plugkit v$VER (WASM)" \
+              --prerelease \
               --notes "Auto-published WASM-only build from rs-codeinsight CI at $GITHUB_SHA"
           fi
           gh release upload "v$VER" \

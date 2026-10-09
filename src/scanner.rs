@@ -1,18 +1,60 @@
 use std::collections::HashMap;
 
-#[derive(Default, Clone)]
+#[derive(Clone, Copy)]
+pub enum NoteKind {
+    Todo,
+    Fixme,
+    Hack,
+}
+
+impl NoteKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NoteKind::Todo => "TODO",
+            NoteKind::Fixme => "FIXME",
+            NoteKind::Hack => "HACK",
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct DevNote {
     pub file: String,
     pub line: u32,
-    pub kind: String,
+    pub kind: NoteKind,
     pub text: String,
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SecurityKind {
+    Eval,
+    Secret,
+    SqlInjection,
+}
+
+impl SecurityKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SecurityKind::Eval => "eval",
+            SecurityKind::Secret => "secret",
+            SecurityKind::SqlInjection => "sql_injection",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SecurityKind::Eval => "eval()",
+            SecurityKind::Secret => "hardcoded secrets",
+            SecurityKind::SqlInjection => "SQL injection",
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct SecurityIssue {
     pub file: String,
     pub line: u32,
-    pub kind: String,
+    pub kind: SecurityKind,
     pub detail: String,
 }
 
@@ -64,7 +106,7 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
                 let text = extract_note_text(trimmed, pos + 4);
                 results.todos.push(DevNote {
                     file: rel_path.to_string(), line: ln,
-                    kind: "TODO".into(), text,
+                    kind: NoteKind::Todo, text,
                 });
             }
         }
@@ -73,7 +115,7 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
                 let text = extract_note_text(trimmed, pos + 5);
                 results.fixmes.push(DevNote {
                     file: rel_path.to_string(), line: ln,
-                    kind: "FIXME".into(), text,
+                    kind: NoteKind::Fixme, text,
                 });
             }
         }
@@ -82,7 +124,7 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
                 let text = extract_note_text(trimmed, pos + 4);
                 results.hacks.push(DevNote {
                     file: rel_path.to_string(), line: ln,
-                    kind: "HACK".into(), text,
+                    kind: NoteKind::Hack, text,
                 });
             }
         }
@@ -92,7 +134,7 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
             if !is_safe {
                 results.security.push(SecurityIssue {
                     file: rel_path.to_string(), line: ln,
-                    kind: "eval".into(),
+                    kind: SecurityKind::Eval,
                     detail: "eval() usage".into(),
                 });
             }
@@ -173,7 +215,7 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
         {
             results.security.push(SecurityIssue {
                 file: rel_path.to_string(), line: ln,
-                kind: "secret".into(),
+                kind: SecurityKind::Secret,
                 detail: "Possible hardcoded secret".into(),
             });
         }
@@ -187,7 +229,7 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
         {
             results.security.push(SecurityIssue {
                 file: rel_path.to_string(), line: ln,
-                kind: "sql_injection".into(),
+                kind: SecurityKind::SqlInjection,
                 detail: "SQL with string interpolation".into(),
             });
         }
