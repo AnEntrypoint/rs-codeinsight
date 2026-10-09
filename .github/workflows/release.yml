@@ -2,147 +2,33 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
     branches:
       - main
     paths-ignore: ['**.md', 'docs/**', 'LICENSE', '.gitignore']
   workflow_dispatch:
 
 concurrency:
-  group: release
+  group: codeinsight-release
   cancel-in-progress: false
 
-permissions:
-  contents: write
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
-
-      - name: Install wasi-sdk (clang + sysroot for tree-sitter C grammars)
-        run: |
-          WASI_VERSION=24
-          WASI_VERSION_FULL=${WASI_VERSION}.0
-          curl -sL -o wasi-sdk.tar.gz "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-x86_64-linux.tar.gz"
-          mkdir -p $HOME/wasi-sdk
-          tar -xzf wasi-sdk.tar.gz -C $HOME/wasi-sdk --strip-components=1
-          echo "WASI_SDK_PATH=$HOME/wasi-sdk" >> $GITHUB_ENV
-          echo "CC_wasm32_wasip1=$HOME/wasi-sdk/bin/clang" >> $GITHUB_ENV
-          echo "AR_wasm32_wasip1=$HOME/wasi-sdk/bin/llvm-ar" >> $GITHUB_ENV
-          echo "CFLAGS_wasm32_wasip1=--sysroot=$HOME/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
-
-      - uses: Swatinem/rust-cache@v2
-        continue-on-error: true
-        with:
-          key: release-wasm32-wasip1
-          cache-on-failure: true
-
-      - name: Wipe cargo git cache and lockfile (force fresh dep resolution)
-        shell: bash
-        continue-on-error: true
-        run: |
-          rm -rf ~/.cargo/git/db ~/.cargo/git/checkouts || true
-          rm -f Cargo.lock
-          cargo generate-lockfile
-
-      - name: Build WASM
-        run: cargo build --release --target wasm32-wasip1 --no-default-features --features "wasm all-languages" --lib
-
-      - name: Rename WASM binary
-        shell: bash
-        run: |
-          cp "target/wasm32-wasip1/release/rs_codeinsight.wasm" "rs-codeinsight.wasm"
-
-      - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rs-codeinsight.wasm
-          path: rs-codeinsight.wasm
-
-  publish-binaries:
-    needs: build
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout rs-codeinsight for version
-        uses: actions/checkout@v4
-        with:
-          path: rs-codeinsight-src
-          token: ${{ secrets.PUBLISHER_TOKEN }}
-          fetch-depth: 0
-
-      - name: Auto-bump rs-codeinsight patch version
-        id: bump
-        shell: bash
-        working-directory: rs-codeinsight-src
-        env:
-          GH_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
-        run: |
-          git config user.name "gm-bot"
-          git config user.email "noreply@github.com"
-          git config url."https://${GH_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
-          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*= *"//;s/"//')
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          NEW_PATCH=$((PATCH + 1))
-          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
-          sed -i "0,/^version = \".*\"/{s/^version = \".*\"/version = \"$NEW_VERSION\"/}" Cargo.toml
-          git add Cargo.toml
-          if git diff --cached --quiet; then
-            echo "No version change needed"
-            echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
-          else
-            git commit -m "chore: auto-bump version to $NEW_VERSION [skip ci]"
-            git fetch origin main
-            git rebase -s recursive -X theirs origin/main
-            git push origin HEAD:main
-            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Download WASM artifact
-        uses: actions/download-artifact@v4
-        with:
-          path: bins/
-
-      - name: Stage release assets
-        id: stage
-        shell: bash
-        env:
-          VER: ${{ steps.bump.outputs.version }}
-        run: |
-          set -e
-          mkdir -p release-assets
-          cp bins/rs-codeinsight.wasm/rs-codeinsight.wasm release-assets/
-          cd release-assets
-          sha256sum rs-codeinsight.wasm | sed 's/ \*/  /' > rs-codeinsight.wasm.sha256
-          echo "$VER" > rs-codeinsight.wasm.version
-          ls -la
-          cat rs-codeinsight.wasm.sha256
-
-      - name: Upload to plugkit-bin Release
-        env:
-          GH_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
-          VER: ${{ steps.bump.outputs.version }}
-        run: |
-          set -e
-          if ! gh release view "v$VER" --repo AnEntrypoint/plugkit-bin >/dev/null 2>&1; then
-            gh release create "v$VER" \
-              --repo AnEntrypoint/plugkit-bin \
-              --title "plugkit v$VER (WASM)" \
-              --prerelease \
-              --notes "Auto-published WASM-only build from rs-codeinsight CI at $GITHUB_SHA"
-          fi
-          gh release upload "v$VER" \
-            --repo AnEntrypoint/plugkit-bin \
-            --clobber \
-            release-assets/rs-codeinsight.wasm \
-            release-assets/rs-codeinsight.wasm.sha256 \
-            release-assets/rs-codeinsight.wasm.version
-
+  publish:
+    uses: AnEntrypoint/rs-plugkit/.github/workflows/wasm-plugin-release.yml@main
+    with:
+      wasm_artifact_name: rs_codeinsight.wasm
+      published_asset_basename: codeinsight
+      release_repo: AnEntrypoint/agentplug-codeinsight-bin
+      release_title_prefix: agentplug-codeinsight
+      pre_build_steps: |
+        set -e
+        WASI_VERSION=24
+        curl -sL -o wasi-sdk.tar.gz "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION}.0-x86_64-linux.tar.gz"
+        mkdir -p $HOME/wasi-sdk
+        tar -xzf wasi-sdk.tar.gz -C $HOME/wasi-sdk --strip-components=1
+        echo "WASI_SDK_PATH=$HOME/wasi-sdk" >> $GITHUB_ENV
+        echo "CC_wasm32_wasip1=$HOME/wasi-sdk/bin/clang" >> $GITHUB_ENV
+        echo "AR_wasm32_wasip1=$HOME/wasi-sdk/bin/llvm-ar" >> $GITHUB_ENV
+        echo "CFLAGS_wasm32_wasip1=--sysroot=$HOME/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
+      build_command: cargo build --release --target wasm32-wasip1 --no-default-features --features "wasm all-languages" --lib
+    secrets:
+      publisher_token: ${{ secrets.PUBLISHER_TOKEN }}
