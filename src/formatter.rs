@@ -240,8 +240,8 @@ pub fn format_compact(
         if !large_files.is_empty() {
             let list: Vec<String> = large_files.iter().take(6).map(|(p, l)| {
                 let parts: Vec<&str> = p.split('/').collect();
-                let f = if parts.len() >= 2 { format!("{}/{}", parts[parts.len()-2], parts[parts.len()-1]) } else { p.to_string() };
-                format!("{f}:{l}L")
+                let short_path = if parts.len() >= 2 { format!("{}/{}", parts[parts.len()-2], parts[parts.len()-1]) } else { p.to_string() };
+                format!("{short_path}:{l}L")
             }).collect();
             let more = if large_files.len() > 6 { format!(" (+{})", large_files.len() - 6) } else { String::new() };
             let _ = writeln!(out, "**Large files:** {}{more}", list.join(", "));
@@ -275,25 +275,25 @@ pub fn format_compact(
 
         let l0: Vec<_> = connections.iter().filter(|(_, o, i)| *o == 0 && *i > 0).collect();
         if !l0.is_empty() {
-            let s: Vec<String> = l0.iter().take(8).map(|(f, _, i)| format!("{}({}v)", fname(f), i)).collect();
+            let pure_export_labels: Vec<String> = l0.iter().take(8).map(|(f, _, i)| format!("{}({}v)", fname(f), i)).collect();
             let more = if l0.len() > 8 { format!(" (+{})", l0.len() - 8) } else { String::new() };
-            let _ = writeln!(out, "**L0 [pure exports]:** {}{more}", s.join(", "));
+            let _ = writeln!(out, "**L0 [pure exports]:** {}{more}", pure_export_labels.join(", "));
         }
         let l1: Vec<_> = connections.iter().filter(|(_, o, i)| *o >= 1 && *o <= 3 && *i >= 3).collect();
         if !l1.is_empty() {
-            let s: Vec<String> = l1.iter().take(8).map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
-            let _ = writeln!(out, "**L1 [low imports]:** {}", s.join(", "));
+            let low_import_labels: Vec<String> = l1.iter().take(8).map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
+            let _ = writeln!(out, "**L1 [low imports]:** {}", low_import_labels.join(", "));
         }
         let l2: Vec<_> = connections.iter().filter(|(_, o, i)| *o >= 4 && *i >= 2).collect();
         if !l2.is_empty() {
-            let s: Vec<String> = l2.iter().take(8).map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
-            let _ = writeln!(out, "**L2 [mid flow]:** {}", s.join(", "));
+            let mid_flow_labels: Vec<String> = l2.iter().take(8).map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
+            let _ = writeln!(out, "**L2 [mid flow]:** {}", mid_flow_labels.join(", "));
         }
         let l3: Vec<_> = connections.iter().filter(|(_, o, i)| *i == 0 && *o > 0).collect();
         if !l3.is_empty() {
-            let s: Vec<String> = l3.iter().take(8).map(|(f, o, _)| format!("{}({}^)", fname(f), o)).collect();
+            let pure_import_labels: Vec<String> = l3.iter().take(8).map(|(f, o, _)| format!("{}({}^)", fname(f), o)).collect();
             let more = if l3.len() > 8 { format!(" (+{})", l3.len() - 8) } else { String::new() };
-            let _ = writeln!(out, "**L3 [pure imports]:** {}{more}", s.join(", "));
+            let _ = writeln!(out, "**L3 [pure imports]:** {}{more}", pure_import_labels.join(", "));
         }
         if !dep_graph.cross_module_deps.is_empty() {
             let cross: Vec<String> = dep_graph.cross_module_deps.iter().take(6)
@@ -302,8 +302,8 @@ pub fn format_compact(
         }
         let hubs: Vec<_> = connections.iter().filter(|(_, o, i)| o + i >= 5).take(5).collect();
         if !hubs.is_empty() {
-            let s: Vec<String> = hubs.iter().map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
-            let _ = writeln!(out, "**Hubs:** {}", s.join(", "));
+            let hub_labels: Vec<String> = hubs.iter().map(|(f, o, i)| format!("{}({}^{}v)", fname(f), o, i)).collect();
+            let _ = writeln!(out, "**Hubs:** {}", hub_labels.join(", "));
         }
         if !dep_graph.circular.is_empty() {
             let cycles: Vec<String> = dep_graph.circular.iter().take(2)
@@ -321,8 +321,8 @@ pub fn format_compact(
             .collect();
         ext_deps.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
         if !ext_deps.is_empty() {
-            let s: Vec<String> = ext_deps.iter().take(6).map(|(k, _)| k.to_string()).collect();
-            let _ = writeln!(out, "**External:** {}", s.join(", "));
+            let external_labels: Vec<String> = ext_deps.iter().take(6).map(|(k, _)| k.to_string()).collect();
+            let _ = writeln!(out, "**External:** {}", external_labels.join(", "));
         }
         out.push('\n');
     }
@@ -396,8 +396,8 @@ pub fn format_compact(
     if !lf.is_empty() {
         let list: Vec<String> = lf.iter().take(3).map(|(p, a)| {
             let parts: Vec<&str> = p.split('/').collect();
-            let f = if parts.len() >= 2 { format!("{}/{}", parts[parts.len()-2], parts[parts.len()-1]) } else { p.to_string() };
-            format!("{f}:{}L", a.stats.lines)
+            let short_path = if parts.len() >= 2 { format!("{}/{}", parts[parts.len()-2], parts[parts.len()-1]) } else { p.to_string() };
+            format!("{short_path}:{}L", a.stats.lines)
         }).collect();
         let more = if lf.len() > 3 { format!(" (+{})", lf.len() - 3) } else { String::new() };
         issues.push(format!("Large files: {}{more}", list.join(", ")));
@@ -411,8 +411,8 @@ pub fn format_compact(
     if !scans.security.is_empty() {
         let mut by_kind: std::collections::BTreeMap<crate::scanner::SecurityKind, std::collections::BTreeSet<String>> = std::collections::BTreeMap::new();
         for issue in &scans.security {
-            let f = issue.file.rsplit('/').next().unwrap_or(&issue.file);
-            by_kind.entry(issue.kind).or_default().insert(format!("{f}:{}", issue.line));
+            let file_name = issue.file.rsplit('/').next().unwrap_or(&issue.file);
+            by_kind.entry(issue.kind).or_default().insert(format!("{file_name}:{}", issue.line));
         }
         for (kind, locs) in &by_kind {
             let label = kind.label();
@@ -460,16 +460,16 @@ pub fn format_compact(
         if !scans.todos.is_empty() || !scans.fixmes.is_empty() || !scans.hacks.is_empty() {
             let mut notes = Vec::new();
             for n in &scans.todos {
-                let f = n.file.rsplit('/').next().unwrap_or(&n.file);
-                notes.push(if n.text.is_empty() { format!("TODO {f}:{}", n.line) } else { format!("TODO {f}:{} \"{}\"", n.line, n.text) });
+                let file_name = n.file.rsplit('/').next().unwrap_or(&n.file);
+                notes.push(if n.text.is_empty() { format!("TODO {file_name}:{}", n.line) } else { format!("TODO {file_name}:{} \"{}\"", n.line, n.text) });
             }
             for n in &scans.fixmes {
-                let f = n.file.rsplit('/').next().unwrap_or(&n.file);
-                notes.push(if n.text.is_empty() { format!("FIXME {f}:{}", n.line) } else { format!("FIXME {f}:{} \"{}\"", n.line, n.text) });
+                let file_name = n.file.rsplit('/').next().unwrap_or(&n.file);
+                notes.push(if n.text.is_empty() { format!("FIXME {file_name}:{}", n.line) } else { format!("FIXME {file_name}:{} \"{}\"", n.line, n.text) });
             }
             for n in &scans.hacks {
-                let f = n.file.rsplit('/').next().unwrap_or(&n.file);
-                notes.push(if n.text.is_empty() { format!("HACK {f}:{}", n.line) } else { format!("HACK {f}:{} \"{}\"", n.line, n.text) });
+                let file_name = n.file.rsplit('/').next().unwrap_or(&n.file);
+                notes.push(if n.text.is_empty() { format!("HACK {file_name}:{}", n.line) } else { format!("HACK {file_name}:{} \"{}\"", n.line, n.text) });
             }
             let _ = writeln!(out, "**Notes:** {}", notes.join(" | "));
         }

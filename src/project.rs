@@ -361,13 +361,13 @@ fn object_body(json: &str) -> Option<&str> {
     let mut escaped = false;
     let mut i = start;
     while i < bytes.len() {
-        let c = bytes[i];
+        let current_byte = bytes[i];
         if in_str {
             if escaped { escaped = false; }
-            else if c == b'\\' { escaped = true; }
-            else if c == b'"' { in_str = false; }
+            else if current_byte == b'\\' { escaped = true; }
+            else if current_byte == b'"' { in_str = false; }
         } else {
-            match c {
+            match current_byte {
                 b'"' => in_str = true,
                 b'{' => depth += 1,
                 b'}' => {
@@ -393,11 +393,11 @@ fn top_level_fields(body: &str) -> Vec<(String, &str)> {
     let mut value_start: Option<usize> = None;
     let mut i = 0usize;
     while i < bytes.len() {
-        let c = bytes[i];
+        let current_byte = bytes[i];
         if in_str {
             if escaped { escaped = false; }
-            else if c == b'\\' { escaped = true; }
-            else if c == b'"' {
+            else if current_byte == b'\\' { escaped = true; }
+            else if current_byte == b'"' {
                 in_str = false;
                 if depth == 0 && last_key.is_none() && value_start.is_none() {
                     if let Some(ks) = key_start.take() {
@@ -406,7 +406,7 @@ fn top_level_fields(body: &str) -> Vec<(String, &str)> {
                 }
             }
         } else {
-            match c {
+            match current_byte {
                 b'"' => {
                     in_str = true;
                     if depth == 0 && last_key.is_none() && value_start.is_none() {
@@ -435,19 +435,19 @@ fn top_level_fields(body: &str) -> Vec<(String, &str)> {
 }
 
 fn unquote(value: &str) -> Option<String> {
-    let v = value.trim();
-    if v.starts_with('"') {
-        let inner = &v[1..];
+    let trimmed_value = value.trim();
+    if trimmed_value.starts_with('"') {
+        let inner = &trimmed_value[1..];
         let bytes = inner.as_bytes();
         let mut i = 0;
         let mut escaped = false;
         while i < bytes.len() {
-            let c = bytes[i];
+            let current_byte = bytes[i];
             if escaped {
                 escaped = false;
-            } else if c == b'\\' {
+            } else if current_byte == b'\\' {
                 escaped = true;
-            } else if c == b'"' {
+            } else if current_byte == b'"' {
                 return Some(unescape_json_string(&inner[..i]));
             }
             i += 1;

@@ -121,15 +121,15 @@ fn parse_string_array(value: &str) -> Vec<String> {
     split_top_level_commas(inner)
         .into_iter()
         .filter_map(|item| {
-            let s = item.trim();
-            if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
-                Some(unescape_double_quoted(&s[1..s.len() - 1]))
-            } else if s.len() >= 2 && s.starts_with('\'') && s.ends_with('\'') {
-                Some(s[1..s.len() - 1].to_string())
-            } else if s.is_empty() {
+            let trimmed_item = item.trim();
+            if trimmed_item.len() >= 2 && trimmed_item.starts_with('"') && trimmed_item.ends_with('"') {
+                Some(unescape_double_quoted(&trimmed_item[1..trimmed_item.len() - 1]))
+            } else if trimmed_item.len() >= 2 && trimmed_item.starts_with('\'') && trimmed_item.ends_with('\'') {
+                Some(trimmed_item[1..trimmed_item.len() - 1].to_string())
+            } else if trimmed_item.is_empty() {
                 None
             } else {
-                Some(s.to_string())
+                Some(trimmed_item.to_string())
             }
         })
         .collect()

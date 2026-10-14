@@ -173,18 +173,18 @@ pub fn scan_source(rel_path: &str, source: &str) -> ScanResults {
             if let Some(pos) = trimmed.find("= \"") {
                 let after = &trimmed[pos + 3..];
                 if let Some(end) = after.find('"') {
-                    let val = &after[..end];
-                    val.chars().all(|c| c.is_uppercase() || c == '_')
-                        || val.starts_with("PASSWORD_") || val.starts_with("X-")
-                        || val.starts_with("csrf") || val.starts_with("session")
+                    let assigned_value = &after[..end];
+                    assigned_value.chars().all(|c| c.is_uppercase() || c == '_')
+                        || assigned_value.starts_with("PASSWORD_") || assigned_value.starts_with("X-")
+                        || assigned_value.starts_with("csrf") || assigned_value.starts_with("session")
                 } else { false }
             } else if let Some(pos) = trimmed.find("= '") {
                 let after = &trimmed[pos + 3..];
                 if let Some(end) = after.find('\'') {
-                    let val = &after[..end];
-                    val.chars().all(|c| c.is_uppercase() || c == '_')
-                        || val.starts_with("PASSWORD_") || val.starts_with("X-")
-                        || val.starts_with("csrf") || val.starts_with("session")
+                    let assigned_value = &after[..end];
+                    assigned_value.chars().all(|c| c.is_uppercase() || c == '_')
+                        || assigned_value.starts_with("PASSWORD_") || assigned_value.starts_with("X-")
+                        || assigned_value.starts_with("csrf") || assigned_value.starts_with("session")
                 } else { false }
             } else { false }
         };

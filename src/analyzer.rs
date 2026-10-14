@@ -214,9 +214,9 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
                     if end > cap + 1 {
                         let inner = &text[cap + 1..end];
                         for name in inner.split(',') {
-                            let n = name.split(':').next().unwrap_or("").trim();
-                            if !n.is_empty() {
-                                analysis.exported_names.insert(n.to_string());
+                            let base_name = name.split(':').next().unwrap_or("").trim();
+                            if !base_name.is_empty() {
+                                analysis.exported_names.insert(base_name.to_string());
                             }
                         }
                     }
@@ -294,11 +294,11 @@ fn traverse(node: Node, source: &str, analysis: &mut FileAnalysis, depth: u32) {
                                     || arg.kind() == "string_literal"
                                     || arg.kind() == "template_string"
                                 {
-                                    let val = node_text(arg, source)
+                                    let argument_text = node_text(arg, source)
                                         .trim_matches(|c| c == '\'' || c == '"' || c == '`')
                                         .to_string();
-                                    if val.starts_with('/') {
-                                        analysis.http_routes.push(val);
+                                    if argument_text.starts_with('/') {
+                                        analysis.http_routes.push(argument_text);
                                     }
                                     break;
                                 }
