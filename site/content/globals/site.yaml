@@ -1,0 +1,17 @@
+title: "rs-codeinsight"
+tagline: "tree-sitter codebase analyzer"
+description: "instant project understanding for AI coding tools. one binary, every language tree-sitter speaks. gm's situational-awareness layer."
+repo: "https://github.com/AnEntrypoint/rs-codeinsight"
+url: "https://anentrypoint.github.io/rs-codeinsight"
+year: 2026
+keywords:
+  - "rust"
+  - "tree-sitter"
+  - "analysis"
+  - "247420"
+  - "anentrypoint"
+accent_from: "#7ee787"
+accent_to: "#56d364"
+glyph: "⌗"
+code: "004"
+category: "gm"
