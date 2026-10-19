@@ -23,17 +23,17 @@ Thanks for your interest in contributing. Here's how to get started.
 
 ```
 src/
-  lib.rs           — entry point, file collection, parallel dispatch
-  lang.rs          — tree-sitter grammar registry
-  analyzer.rs      — AST traversal and entity extraction
-  depgraph.rs      — dependency graph and dead code detection
-  formatter.rs     — markdown output generation
-  project.rs       — package.json / go.mod metadata
-  git.rs           — git context
-  tooling.rs       — CI/linting/testing detection
-  scanner.rs       — TODO/FIXME, security, test mapping
-  models.rs        — data model detection
-  locations.rs     — key directory recognition
+  lib.rs           - entry point, file collection, parallel dispatch
+  lang.rs          - tree-sitter grammar registry
+  analyzer.rs      - AST traversal and entity extraction
+  depgraph.rs      - dependency graph and dead code detection
+  formatter.rs     - markdown output generation
+  project.rs       - package.json / go.mod metadata
+  git.rs           - git context
+  tooling.rs       - CI/linting/testing detection
+  scanner.rs       - TODO/FIXME, security, test mapping
+  models.rs        - data model detection
+  locations.rs     - key directory recognition
 ```
 
 ## How to contribute
@@ -73,7 +73,7 @@ If codeinsight flags something incorrectly (e.g., marking a Next.js page as orph
 ## Code style
 
 - No comments unless the logic is non-obvious
-- Keep functions focused — one function, one job
+- Keep functions focused: one function, one job
 - Use `rustfmt` for formatting: `cargo fmt`
 - Use `clippy` for linting: `cargo clippy`
 

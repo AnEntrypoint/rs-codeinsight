@@ -7,11 +7,11 @@
 
 Fast codebase analyzer powered by tree-sitter. Gives AI coding tools (Claude Code, Cursor, Copilot, etc.) instant, comprehensive project understanding in a single pass.
 
-Built in Rust for speed. Analyzes 500-file projects in under 200ms. Zero runtime dependencies — single static binary.
+Built in Rust for speed. Analyzes 500-file projects in under 200ms. Zero runtime dependencies: single static binary.
 
 ## Why
 
-AI coding assistants waste their first few interactions exploring your codebase — reading package.json, grepping for patterns, checking directory structure. This burns tokens, adds latency, and still produces an incomplete picture.
+AI coding assistants waste their first few interactions exploring your codebase: reading package.json, grepping for patterns, checking directory structure. This burns tokens, adds latency, and still produces an incomplete picture.
 
 codeinsight solves this by analyzing your entire codebase in one pass and producing a token-efficient overview that tells the AI everything it needs to know: what frameworks you use, what your data models look like, where the key code lives, how code should be written, what's tested, what's broken, and what's actively being worked on.
 
@@ -42,7 +42,7 @@ codeinsight outputs a compact, LLM-optimized report (~900 tokens for a 500-file 
 | **Health issues** | `Issues: 40 orphaned, 4 unused exports, 35 large files` |
 | **Exported API** | `Exports: auth-client.ts:33:getCSRFToken, badge.tsx:30:Badge` |
 
-Every env var, every route, every model is shown in full — no artificial caps. Claude gets reference data it can use directly, not summaries it has to verify.
+Every env var, every route, every model is shown in full: no artificial caps. Claude gets reference data it can use directly, not summaries it has to verify.
 
 The output is designed for LLM consumption: no emojis, no markdown formatting overhead, no legends. Pure data, self-describing labels, minimal tokens.
 
@@ -86,7 +86,7 @@ From this output, an AI assistant instantly knows: this is a **Next.js + Go/Gin*
 
 ## Inspired by
 
-codeinsight was inspired by [mcp-thorns](https://github.com/AnEntrypoint/mcp-thorns) — a Node.js codebase analyzer that pioneered the idea of giving AI tools a one-shot project overview using tree-sitter AST analysis. mcp-thorns demonstrated that structured codebase context dramatically improves AI coding assistant performance.
+codeinsight was inspired by [mcp-thorns](https://github.com/AnEntrypoint/mcp-thorns): a Node.js codebase analyzer that pioneered the idea of giving AI tools a one-shot project overview using tree-sitter AST analysis. mcp-thorns demonstrated that structured codebase context dramatically improves AI coding assistant performance.
 
 codeinsight builds on that foundation with a Rust implementation for faster analysis, additional detection capabilities (git context, security scanning, test mapping, data model detection, convention detection), and framework-aware dead code analysis.
 
@@ -124,11 +124,11 @@ codeinsight builds on that foundation with a Rust implementation for faster anal
 | Runtime deps | None (static binary) | None | Node.js + 13 native modules | None |
 | Languages supported | 13 | 200+ | 13 | Per grammar |
 
-**tokei / scc / cloc** are excellent line-counting tools. They answer "how big is this codebase?" but not "what does this codebase do?" — no framework detection, no dependency analysis, no domain model extraction, no conventions.
+**tokei / scc / cloc** are excellent line-counting tools. They answer "how big is this codebase?" but not "what does this codebase do?": no framework detection, no dependency analysis, no domain model extraction, no conventions.
 
 **mcp-thorns** pioneered the AI-optimized codebase overview concept. codeinsight builds on that idea with Rust for speed, additional analysis capabilities, and a more token-efficient output format.
 
-**tree-sitter CLI** provides raw AST output. codeinsight uses tree-sitter internally but adds the analysis layer on top — extracting meaning, not just structure.
+**tree-sitter CLI** provides raw AST output. codeinsight uses tree-sitter internally but adds the analysis layer on top: extracting meaning, not just structure.
 
 ## Installation
 
@@ -190,19 +190,19 @@ codeinsight --read-cache /path/to/your/project
 
 The cache is written as a **pair** in the project root:
 
-- `.codeinsight` — the analysis output (text or JSON, matching the flags used)
-- `.codeinsight.digest` — an md5 of `(sorted [rel_path | mtime_secs], GIT_HEAD, git status --porcelain line count)` computed over every file `collect_files` walked
+- `.codeinsight`: the analysis output (text or JSON, matching the flags used)
+- `.codeinsight.digest`: an md5 of `(sorted [rel_path | mtime_secs], GIT_HEAD, git status --porcelain line count)` computed over every file `collect_files` walked
 
 `--cache` writes both atomically. `--read-cache` re-computes the live digest, compares
 against `.codeinsight.digest`, and serves the cached content verbatim on match. On
-mismatch — file added, deleted, renamed, edited, branch switched, or working tree
-dirtied — it transparently regenerates: runs a fresh analyze, rewrites both files,
+mismatch - file added, deleted, renamed, edited, branch switched, or working tree
+dirtied - it transparently regenerates: runs a fresh analyze, rewrites both files,
 and prints the fresh output. Consumers always get a result; there is no cache-miss
 exit code. Stderr prints `[codeinsight cache stale or missing; running fresh analyze]`
 on the regenerate path so callers can observe rebuilds.
 
 Do not read `.codeinsight` directly without first validating `.codeinsight.digest`
-against the live tree — the file alone cannot tell you whether it matches the
+against the live tree: the file alone cannot tell you whether it matches the
 current source.
 
 Use `--cache` in session-start hooks for instant reads on subsequent prompts.
@@ -237,7 +237,7 @@ The output is injected into Claude's context at session start, giving it full pr
 Run codeinsight and paste the output into your AI tool's context or system prompt:
 
 ```bash
-codeinsight . | pbcopy  # macOS — copies to clipboard
+codeinsight . | pbcopy  # macOS: copies to clipboard
 ```
 
 #### CI / Code Review
@@ -261,8 +261,8 @@ codeinsight uses tree-sitter grammars for accurate AST-level analysis:
 | Python | `.py` | Django, Flask, FastAPI |
 | Go | `.go` | Gin, Echo, Fiber, Chi, Gorilla Mux |
 | Rust | `.rs` | Actix, Axum, Rocket |
-| C | `.c`, `.h` | — |
-| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp` | — |
+| C | `.c`, `.h` | n/a |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp` | n/a |
 | Java | `.java` | Spring |
 | Ruby | `.rb` | Rails |
 | PHP | `.php` | Laravel, Symfony |
@@ -278,7 +278,7 @@ codeinsight builds a full cross-language dependency graph with import resolution
 - **Python**: dot-notation imports (`from module.sub import thing`), relative imports, `__init__.py` resolution
 - **Rust**: `mod foo;` declarations resolved to `foo.rs` or `foo/mod.rs`
 
-The graph powers dead code detection (framework-aware — excludes Next.js pages, Go files, config files), circular dependency detection, coupling analysis, and entry point identification.
+The graph powers dead code detection (framework-aware: excludes Next.js pages, Go files, config files), circular dependency detection, coupling analysis, and entry point identification.
 
 ## Convention detection
 
@@ -287,13 +287,13 @@ codeinsight detects per-language coding conventions from actual code patterns:
 | Convention | JS/TS/TSX | Go | Python | Rust |
 |---|---|---|---|---|
 | Indent style | 2-space / 4-space / tabs | tabs | 4-space | 4-space |
-| Quote style | single / double | — | single / double | — |
-| Semicolons | yes / no | — | — | — |
-| Function style | arrow / declaration | — | — | — |
-| Export style | named / default | — | — | — |
-| Import style | @/ / relative | — | — | — |
+| Quote style | single / double | n/a | single / double | n/a |
+| Semicolons | yes / no | n/a | n/a | n/a |
+| Function style | arrow / declaration | n/a | n/a | n/a |
+| Export style | named / default | n/a | n/a | n/a |
+| Import style | @/ / relative | n/a | n/a | n/a |
 | File naming | kebab / camel / Pascal / snake | snake_case | snake_case | snake_case |
-| Error handling | — | if err != nil | — | ? / unwrap / expect |
+| Error handling | n/a | if err != nil | n/a | ? / unwrap / expect |
 
 Output: one line per language, only showing conventions with a clear majority pattern.
 
@@ -310,7 +310,7 @@ Walks the project directory respecting `.gitignore` rules. Automatically skips `
 
 ### 2. Parallel parsing
 
-All files are parsed in parallel using `rayon`. Each file gets the appropriate tree-sitter grammar. Parallelism saturates all CPU cores — this is why a 500-file project finishes in 180ms.
+All files are parsed in parallel using `rayon`. Each file gets the appropriate tree-sitter grammar. Parallelism saturates all CPU cores: this is why a 500-file project finishes in 180ms.
 
 ### 3. AST analysis
 
@@ -338,20 +338,20 @@ Formatted for LLM consumption: no emojis, no markdown overhead, no legends. Self
 
 ```
 src/
-  main.rs          — entry point, file collection, parallel dispatch, CLI flags
-  lang.rs          — tree-sitter grammar registry (13 languages)
-  analyzer.rs      — AST traversal, entity extraction, convention counting
-  depgraph.rs      — dependency graph, import resolution, dead code detection
-  formatter.rs     — compact LLM-optimized text output
-  json_output.rs   — structured JSON output
-  project.rs       — package.json / go.mod / tsconfig.json metadata
-  config.rs        — .codeinsight.toml configuration loading
-  conventions.rs   — per-language convention aggregation
-  git.rs           — git context (branch, commits, hot files)
-  tooling.rs       — CI, linting, testing framework detection
-  scanner.rs       — TODO/FIXME/HACK, security signals, test mapping
-  models.rs        — data model and schema detection
-  locations.rs     — key directory pattern recognition
+  main.rs          - entry point, file collection, parallel dispatch, CLI flags
+  lang.rs          - tree-sitter grammar registry (13 languages)
+  analyzer.rs      - AST traversal, entity extraction, convention counting
+  depgraph.rs      - dependency graph, import resolution, dead code detection
+  formatter.rs     - compact LLM-optimized text output
+  json_output.rs   - structured JSON output
+  project.rs       - package.json / go.mod / tsconfig.json metadata
+  config.rs        - .codeinsight.toml configuration loading
+  conventions.rs   - per-language convention aggregation
+  git.rs           - git context (branch, commits, hot files)
+  tooling.rs       - CI, linting, testing framework detection
+  scanner.rs       - TODO/FIXME/HACK, security signals, test mapping
+  models.rs        - data model and schema detection
+  locations.rs     - key directory pattern recognition
 ```
 
 ## Why your README matters
@@ -360,7 +360,7 @@ codeinsight reads your project's README and includes an excerpt in the output. T
 
 Code tells an AI *what* the project does technically. The README tells it *why* it exists, *who* it's for, and *what problem* it solves. An AI that knows "this is a stan.store alternative for the Saudi Arabian market" makes fundamentally different decisions than one that only sees "Next.js + Go + Stripe."
 
-If your project doesn't have a README, or has a bare-bones one, codeinsight can't provide this context and the AI assistant starts with a purely technical view of your code. A good first paragraph in your README — one or two sentences explaining what the project is and who it's for — dramatically improves the quality of AI-assisted development on your codebase.
+If your project doesn't have a README, or has a bare-bones one, codeinsight can't provide this context and the AI assistant starts with a purely technical view of your code. A good first paragraph in your README: one or two sentences explaining what the project is and who it's for: dramatically improves the quality of AI-assisted development on your codebase.
 
 **A good README first paragraph looks like:**
 - "A marketplace platform for creators to sell digital products, built for the Saudi Arabian market."

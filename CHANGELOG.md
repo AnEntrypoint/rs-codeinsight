@@ -16,7 +16,7 @@ Expanded `all-languages` from 12 to **28** by adding 16 tree-sitter grammars ver
 
 Each language is a separate Cargo feature; `default = ["all-languages"]` enables every grammar. Per-language opt-out works via `default-features = false, features = ["javascript","typescript","python"]` etc.
 
-#### Excluded — incompatible with `tree-sitter@0.24` core
+#### Excluded: incompatible with `tree-sitter@0.24` core
 
 The following crates were attempted but rejected after CI surfaced incompatibilities. Re-include when upstream publishes a 0.24-compatible release:
 
@@ -31,13 +31,13 @@ Crate API note: modern crates export `tree_sitter_<lang>::LANGUAGE` (a `Language
 
 ### Features
 
-- `--json` flag for structured JSON output — enables programmatic consumption by CI, dashboards, and other tools
+- `--json` flag for structured JSON output: enables programmatic consumption by CI, dashboards, and other tools
 - `--cache` flag writes output to `.codeinsight` file in project root for instant reads
 - `--read-cache` reads cached output without re-analyzing (sub-millisecond)
-- `.codeinsight.toml` config file support — custom ignore directories, ignore file patterns, max file size
+- `.codeinsight.toml` config file support: custom ignore directories, ignore file patterns, max file size
 - PHP language support (`.php` files)
 - C# language support (`.cs` files)
-- LLM-optimized output format — ~900 tokens vs ~2500, no emojis, no markdown overhead, all data preserved
+- LLM-optimized output format: ~900 tokens vs ~2500, no emojis, no markdown overhead, all data preserved
 - All env vars, routes, and models shown in full (no artificial caps)
 - Monorepo script detection from subdirectory package.json and go.mod files
 - Go entry point detection (`cmd/` directory or `main.go`)
