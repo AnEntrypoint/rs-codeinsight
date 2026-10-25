@@ -31,5 +31,6 @@ jobs:
         echo "AR_wasm32_wasip1=$HOME/wasi-sdk/bin/llvm-ar" >> $GITHUB_ENV
         echo "CFLAGS_wasm32_wasip1=--sysroot=$HOME/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
       build_command: cargo build --release --target wasm32-wasip1 --no-default-features --features "wasm all-languages" --lib
+      wasm_target: wasm32-wasip1
     secrets:
       publisher_token: ${{ secrets.PUBLISHER_TOKEN }}
